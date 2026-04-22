@@ -1,0 +1,19 @@
+node_modules/
+dist/
+.DS_Store
+*.log
+*.tsbuildinfo
+
+# Local environment files
+.env
+backend/.env
+frontend/.env
+
+# Build and generated artifacts
+backend/dist/
+frontend/dist/
+backend/src/**/*.js
+backend/prisma/*.js
+
+# Runtime uploads
+backend/uploads/

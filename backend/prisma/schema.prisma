@@ -1,0 +1,115 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  STUDENT
+  ADMIN
+}
+
+enum Visibility {
+  SHARED
+  PRIVATE
+}
+
+enum DocumentStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+model User {
+  id             String   @id @default(uuid())
+  username       String   @unique
+  passwordHash   String
+  role           Role
+  mustChangePass Boolean  @default(true)
+  isActive       Boolean  @default(true)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  student        Student?
+}
+
+model Student {
+  id              String   @id @default(uuid())
+  userId          String   @unique
+  rollNumber      String   @unique
+  fullName        String
+  email           String?
+  phone           String?
+  batch           Int
+  branch          String
+  section         String?
+  tenthPercentage Float?
+  interPercentage Float?
+  currentCgpa     Float?
+  backlogsCount   Int      @default(0)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  documents       StudentDocument[]
+  certifications  Certification[]
+}
+
+model DocumentType {
+  id          String   @id @default(uuid())
+  name        String   @unique
+  isMandatory Boolean  @default(false)
+  createdAt   DateTime @default(now())
+
+  documents   StudentDocument[]
+}
+
+model StudentDocument {
+  id             String         @id @default(uuid())
+  studentId      String
+  documentTypeId String
+  fileName       String
+  filePath       String
+  mimeType       String
+  fileSize       Int
+  visibility     Visibility     @default(SHARED)
+  status         DocumentStatus @default(PENDING)
+  remarks        String?
+  uploadedAt     DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+
+  student        Student        @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  documentType   DocumentType   @relation(fields: [documentTypeId], references: [id], onDelete: Restrict)
+
+  @@index([studentId])
+  @@index([documentTypeId])
+}
+
+model Certification {
+  id              String     @id @default(uuid())
+  studentId       String
+  title           String
+  provider        String
+  category        String?
+  issueDate       DateTime?
+  expiryDate      DateTime?
+  credentialId    String?
+  verificationUrl String?
+  fileName        String
+  filePath        String
+  mimeType        String
+  fileSize        Int
+  visibility      Visibility @default(SHARED)
+  createdAt       DateTime   @default(now())
+  updatedAt       DateTime   @updatedAt
+
+  student         Student    @relation(fields: [studentId], references: [id], onDelete: Cascade)
+
+  @@index([studentId])
+  @@index([title])
+  @@index([provider])
+  @@index([category])
+}
