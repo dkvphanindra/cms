@@ -6,6 +6,7 @@ import { StudentsModule } from './students/students.module';
 import { DocumentTypesModule } from './document-types/document-types.module';
 import { DocumentsModule } from './documents/documents.module';
 import { CertificationsModule } from './certifications/certifications.module';
+import { CertificationTypesModule } from './certification-types/certification-types.module';
 
 @Module({
   imports: [
@@ -14,6 +15,7 @@ import { CertificationsModule } from './certifications/certifications.module';
     AuthModule,
     StudentsModule,
     DocumentTypesModule,
+    CertificationTypesModule,
     DocumentsModule,
     CertificationsModule,
   ],

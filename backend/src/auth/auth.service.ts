@@ -30,6 +30,7 @@ export class AuthService {
       sub: user.id,
       username: user.username,
       role: user.role,
+      mustChangePass: user.mustChangePass,
     };
 
     return {
@@ -57,7 +58,7 @@ export class AuthService {
 
     const newHash = await bcrypt.hash(dto.newPassword, 10);
 
-    await this.prisma.user.update({
+    const updated = await this.prisma.user.update({
       where: { id: userId },
       data: {
         passwordHash: newHash,
@@ -65,6 +66,22 @@ export class AuthService {
       },
     });
 
-    return { message: 'Password changed successfully' };
+    const payload = {
+      sub: updated.id,
+      username: updated.username,
+      role: updated.role,
+      mustChangePass: false,
+    };
+
+    return {
+      message: 'Password changed successfully',
+      accessToken: this.jwtService.sign(payload),
+      user: {
+        id: updated.id,
+        username: updated.username,
+        role: updated.role,
+        mustChangePass: false,
+      },
+    };
   }
 }

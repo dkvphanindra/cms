@@ -14,6 +14,7 @@ import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { CreateStudentDto } from './dto/create-student.dto';
 import { UpdateProfileDto } from './dto/update-profile.dto';
+import { BulkCreateStudentsDto } from './dto/bulk-create-students.dto';
 
 @Controller('students')
 @UseGuards(JwtAuthGuard)
@@ -28,10 +29,21 @@ export class StudentsController {
     return this.studentsService.createStudent(dto);
   }
 
+  @Post('bulk')
+  createStudentsBulk(@CurrentUser() user: any, @Body() dto: BulkCreateStudentsDto) {
+    if (user.role !== 'ADMIN') {
+      throw new ForbiddenException('Only admin can create students');
+    }
+    return this.studentsService.createStudentsBulk(dto.students);
+  }
+
   @Get('me')
   getMyProfile(@CurrentUser() user: any) {
     if (user.role !== 'STUDENT') {
       throw new ForbiddenException('Only students can access this');
+    }
+    if (user.mustChangePass) {
+      throw new ForbiddenException('Change password to continue');
     }
     return this.studentsService.getMyProfile(user.sub);
   }
@@ -40,6 +52,9 @@ export class StudentsController {
   updateMyProfile(@CurrentUser() user: any, @Body() dto: UpdateProfileDto) {
     if (user.role !== 'STUDENT') {
       throw new ForbiddenException('Only students can update profile');
+    }
+    if (user.mustChangePass) {
+      throw new ForbiddenException('Change password to continue');
     }
     return this.studentsService.updateMyProfile(user.sub, dto);
   }

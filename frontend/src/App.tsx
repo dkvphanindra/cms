@@ -1,15 +1,7 @@
 import { ReactNode, useEffect, useMemo, useState } from 'react';
 import LoginPage from './pages/auth/LoginPage';
 import { api } from './lib/api';
-import {
-  AuthUser,
-  Certification,
-  DocumentType,
-  LoginResponse,
-  StudentDocument,
-  StudentProfile,
-  Visibility,
-} from './types';
+import { AuthUser, Certification, DocumentType, LoginResponse, StudentDocument, StudentProfile, Visibility } from './types';
 
 function Field({ label, children }: { label: string; children: ReactNode }) {
   return (
@@ -20,6 +12,24 @@ function Field({ label, children }: { label: string; children: ReactNode }) {
   );
 }
 
+function downloadCsv(filename: string, rows: Record<string, unknown>[]) {
+  if (!rows.length) return;
+  const headers = Object.keys(rows[0]);
+  const lines = [headers.join(',')];
+  for (const row of rows) {
+    lines.push(headers.map((h) => `"${String(row[h] ?? '').replace(/"/g, '""')}"`).join(','));
+  }
+  const blob = new Blob([lines.join('\n')], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.setAttribute('download', filename);
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  URL.revokeObjectURL(url);
+}
+
 export default function App() {
   const [token, setToken] = useState<string | null>(localStorage.getItem('token'));
   const [user, setUser] = useState<AuthUser | null>(() => {
@@ -27,29 +37,39 @@ export default function App() {
     return raw ? (JSON.parse(raw) as AuthUser) : null;
   });
   const [globalMessage, setGlobalMessage] = useState('');
+  const [loading, setLoading] = useState(false);
 
   const [profile, setProfile] = useState<StudentProfile | null>(null);
   const [docTypes, setDocTypes] = useState<DocumentType[]>([]);
+  const [certTypes, setCertTypes] = useState<DocumentType[]>([]);
   const [documents, setDocuments] = useState<StudentDocument[]>([]);
   const [certifications, setCertifications] = useState<Certification[]>([]);
-  const [loading, setLoading] = useState(false);
 
   const [selectedDocTypeId, setSelectedDocTypeId] = useState('');
+  const [selectedCertTypeId, setSelectedCertTypeId] = useState('');
   const [docVisibility, setDocVisibility] = useState<Visibility>('SHARED');
+  const [certVisibility, setCertVisibility] = useState<Visibility>('SHARED');
   const [docFile, setDocFile] = useState<File | null>(null);
+  const [certFile, setCertFile] = useState<File | null>(null);
+  const [replaceDocFile, setReplaceDocFile] = useState<Record<string, File | null>>({});
+  const [replaceCertFile, setReplaceCertFile] = useState<Record<string, File | null>>({});
 
   const [certTitle, setCertTitle] = useState('');
   const [certProvider, setCertProvider] = useState('');
   const [certCategory, setCertCategory] = useState('');
-  const [certVisibility, setCertVisibility] = useState<Visibility>('SHARED');
-  const [certFile, setCertFile] = useState<File | null>(null);
+
+  const [oldPassword, setOldPassword] = useState('');
+  const [newPassword, setNewPassword] = useState('');
 
   const [filterBatch, setFilterBatch] = useState('');
   const [filterBranch, setFilterBranch] = useState('');
   const [filterMinTenth, setFilterMinTenth] = useState('');
-  const [filterCertification, setFilterCertification] = useState('');
-  const [students, setStudents] = useState<any[]>([]);
+  const [filterMinInter, setFilterMinInter] = useState('');
+  const [filterMinBtechCgpa, setFilterMinBtechCgpa] = useState('');
+  const [filterMaxBacklogs, setFilterMaxBacklogs] = useState('');
+  const [students, setStudents] = useState<StudentProfile[]>([]);
   const [selectedStudent, setSelectedStudent] = useState<any | null>(null);
+  const [reviewRemarks, setReviewRemarks] = useState<Record<string, string>>({});
 
   const [newStudent, setNewStudent] = useState({
     rollNumber: '',
@@ -61,14 +81,24 @@ export default function App() {
     section: '',
     defaultPassword: 'Student@123',
   });
+  const [bulkInput, setBulkInput] = useState('');
+  const [newDocType, setNewDocType] = useState('');
+  const [newCertType, setNewCertType] = useState('');
+  const [studentAcademic, setStudentAcademic] = useState({
+    tenthMarks: '',
+    tenthPercentage: '',
+    interMarks: '',
+    interPercentage: '',
+    btechCgpa: '',
+    btechPercentage: '',
+    backlogsCount: '',
+  });
+
+  const mustChangePassword = Boolean(user?.role === 'STUDENT' && user.mustChangePass);
 
   const mandatorySummary = useMemo(() => {
     const mandatory = docTypes.filter((d) => d.isMandatory);
-    const uploadedMandatory = new Set(
-      documents
-        .filter((d) => d.documentType.isMandatory)
-        .map((d) => d.documentType.id),
-    );
+    const uploadedMandatory = new Set(documents.filter((d) => d.documentType.isMandatory).map((d) => d.documentType.id));
     const missing = mandatory.filter((d) => !uploadedMandatory.has(d.id));
     return { mandatory, missing };
   }, [docTypes, documents]);
@@ -76,19 +106,31 @@ export default function App() {
   async function loadStudentData(activeToken: string) {
     setLoading(true);
     try {
-      const [myProfile, allDocTypes, myDocs, myCerts] = await Promise.all([
+      const [myProfile, allDocTypes, allCertTypes, myDocs, myCerts] = await Promise.all([
         api.getMyProfile(activeToken),
         api.getDocumentTypes(activeToken),
+        api.getCertificationTypes(activeToken),
         api.getMyDocuments(activeToken),
         api.getMyCertifications(activeToken),
       ]);
+      const docTypeData = allDocTypes as DocumentType[];
+      const certTypeData = allCertTypes as DocumentType[];
       setProfile(myProfile as StudentProfile);
-      setDocTypes(allDocTypes as DocumentType[]);
+      setDocTypes(docTypeData);
+      setCertTypes(certTypeData);
       setDocuments(myDocs as StudentDocument[]);
       setCertifications(myCerts as Certification[]);
-      if ((allDocTypes as DocumentType[]).length > 0 && !selectedDocTypeId) {
-        setSelectedDocTypeId((allDocTypes as DocumentType[])[0].id);
-      }
+      setStudentAcademic({
+        tenthMarks: String((myProfile as StudentProfile).tenthMarks ?? ''),
+        tenthPercentage: String((myProfile as StudentProfile).tenthPercentage ?? ''),
+        interMarks: String((myProfile as StudentProfile).interMarks ?? ''),
+        interPercentage: String((myProfile as StudentProfile).interPercentage ?? ''),
+        btechCgpa: String((myProfile as StudentProfile).btechCgpa ?? (myProfile as StudentProfile).currentCgpa ?? ''),
+        btechPercentage: String((myProfile as StudentProfile).btechPercentage ?? ''),
+        backlogsCount: String((myProfile as StudentProfile).backlogsCount ?? ''),
+      });
+      if (!selectedDocTypeId && docTypeData.length) setSelectedDocTypeId(docTypeData[0].id);
+      if (!selectedCertTypeId && certTypeData.length) setSelectedCertTypeId(certTypeData[0].id);
     } finally {
       setLoading(false);
     }
@@ -96,16 +138,20 @@ export default function App() {
 
   useEffect(() => {
     if (!token || !user) return;
-    if (user.role === 'STUDENT') {
+    if (user.role === 'STUDENT' && !mustChangePassword) {
       loadStudentData(token).catch((e) => setGlobalMessage((e as Error).message));
     }
-  }, [token, user]);
+  }, [token, user, mustChangePassword]);
 
-  function handleLoginSuccess(data: LoginResponse) {
+  function setAuth(data: LoginResponse) {
     localStorage.setItem('token', data.accessToken);
     localStorage.setItem('user', JSON.stringify(data.user));
     setToken(data.accessToken);
     setUser(data.user);
+  }
+
+  function handleLoginSuccess(data: LoginResponse) {
+    setAuth(data);
     setGlobalMessage(`Welcome ${data.user.username}`);
   }
 
@@ -114,36 +160,60 @@ export default function App() {
     localStorage.removeItem('user');
     setToken(null);
     setUser(null);
-    setGlobalMessage('Logged out successfully.');
+  }
+
+  async function changePasswordFirstTime() {
+    if (!token || !oldPassword || !newPassword) return;
+    const data = await api.changePassword(token, oldPassword, newPassword);
+    setAuth(data);
+    setGlobalMessage('Password changed successfully.');
+  }
+
+  async function saveAcademicProfile() {
+    if (!token) return;
+    await api.updateMyProfile(token, {
+      tenthMarks: studentAcademic.tenthMarks ? Number(studentAcademic.tenthMarks) : null,
+      tenthPercentage: studentAcademic.tenthPercentage ? Number(studentAcademic.tenthPercentage) : null,
+      interMarks: studentAcademic.interMarks ? Number(studentAcademic.interMarks) : null,
+      interPercentage: studentAcademic.interPercentage ? Number(studentAcademic.interPercentage) : null,
+      btechCgpa: studentAcademic.btechCgpa ? Number(studentAcademic.btechCgpa) : null,
+      btechPercentage: studentAcademic.btechPercentage ? Number(studentAcademic.btechPercentage) : null,
+      backlogsCount: studentAcademic.backlogsCount ? Number(studentAcademic.backlogsCount) : 0,
+      currentCgpa: studentAcademic.btechCgpa ? Number(studentAcademic.btechCgpa) : null,
+    });
+    await loadStudentData(token);
+    setGlobalMessage('Academic details saved.');
   }
 
   async function uploadDocument() {
     if (!token || !docFile || !selectedDocTypeId) return;
-    const form = new FormData();
-    form.append('documentTypeId', selectedDocTypeId);
-    form.append('visibility', docVisibility);
-    form.append('file', docFile);
-    await api.uploadDocument(token, form);
+    const formData = new FormData();
+    formData.append('documentTypeId', selectedDocTypeId);
+    formData.append('visibility', docVisibility);
+    formData.append('file', docFile);
+    await api.uploadDocument(token, formData);
     setDocFile(null);
     await loadStudentData(token);
     setGlobalMessage('Document uploaded.');
   }
 
-  async function uploadCertification() {
-    if (!token || !certFile || !certTitle || !certProvider) return;
-    const form = new FormData();
-    form.append('title', certTitle);
-    form.append('provider', certProvider);
-    form.append('category', certCategory);
-    form.append('visibility', certVisibility);
-    form.append('file', certFile);
-    await api.uploadCertification(token, form);
-    setCertFile(null);
-    setCertTitle('');
-    setCertProvider('');
-    setCertCategory('');
+  async function replaceDocument(document: StudentDocument) {
+    if (!token || !replaceDocFile[document.id]) return;
+    const formData = new FormData();
+    formData.append('documentTypeId', document.documentType.id);
+    formData.append('visibility', document.visibility);
+    formData.append('file', replaceDocFile[document.id] as File);
+    await api.replaceDocument(token, document.id, formData);
+    setReplaceDocFile((p) => ({ ...p, [document.id]: null }));
     await loadStudentData(token);
-    setGlobalMessage('Certification uploaded.');
+    setGlobalMessage('Document replaced and moved to review.');
+  }
+
+  async function deleteDocument(id: string) {
+    if (!token) return;
+    await api.deleteDocument(token, id);
+    await loadStudentData(token);
+    setGlobalMessage('Document deleted.');
   }
 
   async function toggleDocVisibility(id: string, visibility: Visibility) {
@@ -153,11 +223,66 @@ export default function App() {
     await loadStudentData(token);
   }
 
+  async function uploadCertification() {
+    if (!token || !certFile || !certTitle || !certProvider) return;
+    const formData = new FormData();
+    if (selectedCertTypeId) formData.append('certificationTypeId', selectedCertTypeId);
+    formData.append('title', certTitle);
+    formData.append('provider', certProvider);
+    formData.append('category', certCategory);
+    formData.append('visibility', certVisibility);
+    formData.append('file', certFile);
+    await api.uploadCertification(token, formData);
+    setCertFile(null);
+    setCertTitle('');
+    setCertProvider('');
+    setCertCategory('');
+    await loadStudentData(token);
+    setGlobalMessage('Certification uploaded.');
+  }
+
+  async function replaceCertification(cert: Certification) {
+    if (!token || !replaceCertFile[cert.id]) return;
+    const formData = new FormData();
+    if (cert.certificationTypeId) formData.append('certificationTypeId', cert.certificationTypeId);
+    formData.append('title', cert.title);
+    formData.append('provider', cert.provider);
+    formData.append('category', cert.category || '');
+    formData.append('visibility', cert.visibility);
+    formData.append('file', replaceCertFile[cert.id] as File);
+    await api.replaceCertification(token, cert.id, formData);
+    setReplaceCertFile((p) => ({ ...p, [cert.id]: null }));
+    await loadStudentData(token);
+    setGlobalMessage('Certification replaced and moved to review.');
+  }
+
+  async function deleteCertification(id: string) {
+    if (!token) return;
+    await api.deleteCertification(token, id);
+    await loadStudentData(token);
+    setGlobalMessage('Certification deleted.');
+  }
+
   async function toggleCertVisibility(id: string, visibility: Visibility) {
     if (!token) return;
     const next = visibility === 'SHARED' ? 'PRIVATE' : 'SHARED';
     await api.updateCertificationVisibility(token, id, next);
     await loadStudentData(token);
+  }
+
+  async function createDocumentRequirement() {
+    if (!token || !newDocType.trim()) return;
+    await api.createDocumentType(token, { name: newDocType.trim(), isMandatory: true });
+    setNewDocType('');
+    if (user?.role === 'STUDENT') await loadStudentData(token);
+    setGlobalMessage('Document field created.');
+  }
+
+  async function createCertificationRequirement() {
+    if (!token || !newCertType.trim()) return;
+    await api.createCertificationType(token, { name: newCertType.trim(), isMandatory: true });
+    setNewCertType('');
+    setGlobalMessage('Certification field created.');
   }
 
   async function runStudentFilters() {
@@ -166,17 +291,30 @@ export default function App() {
     if (filterBatch) params.set('batch', filterBatch);
     if (filterBranch) params.set('branch', filterBranch);
     if (filterMinTenth) params.set('minTenth', filterMinTenth);
-    if (filterCertification) params.set('certification', filterCertification);
-
-    const data = (await api.getStudents(token, `?${params.toString()}`)) as any[];
+    if (filterMinInter) params.set('minInter', filterMinInter);
+    if (filterMinBtechCgpa) params.set('minBtechCgpa', filterMinBtechCgpa);
+    if (filterMaxBacklogs) params.set('maxBacklogs', filterMaxBacklogs);
+    const data = (await api.getStudents(token, `?${params.toString()}`)) as StudentProfile[];
     setStudents(data);
     setSelectedStudent(null);
   }
 
-  async function viewStudentDetails(id: string) {
+  async function viewStudent(id: string) {
     if (!token) return;
     const data = await api.getStudentById(token, id);
     setSelectedStudent(data);
+  }
+
+  async function reviewDocument(id: string, status: 'APPROVED' | 'REJECTED') {
+    if (!token) return;
+    await api.reviewDocument(token, id, { status, remarks: reviewRemarks[id] });
+    if (selectedStudent) await viewStudent(selectedStudent.id);
+  }
+
+  async function reviewCertification(id: string, status: 'APPROVED' | 'REJECTED') {
+    if (!token) return;
+    await api.reviewCertification(token, id, { status, remarks: reviewRemarks[id] });
+    if (selectedStudent) await viewStudent(selectedStudent.id);
   }
 
   async function createStudent() {
@@ -185,17 +323,46 @@ export default function App() {
       ...newStudent,
       batch: Number(newStudent.batch),
     });
-    setGlobalMessage(`Student ${newStudent.rollNumber} created successfully.`);
-    setNewStudent({
-      rollNumber: '',
-      fullName: '',
-      email: '',
-      phone: '',
-      batch: '',
-      branch: '',
-      section: '',
-      defaultPassword: 'Student@123',
-    });
+    setGlobalMessage('Student created.');
+  }
+
+  async function createBulkStudents() {
+    if (!token || !bulkInput.trim()) return;
+    const studentsPayload = bulkInput
+      .split('\n')
+      .map((line) => line.trim())
+      .filter(Boolean)
+      .map((line) => {
+        const [rollNumber, fullName, batch, branch, section, email, phone, defaultPassword] = line.split(',').map((p) => p.trim());
+        return {
+          rollNumber,
+          fullName,
+          batch: Number(batch),
+          branch,
+          section: section || undefined,
+          email: email || undefined,
+          phone: phone || undefined,
+          defaultPassword: defaultPassword || 'Student@123',
+        };
+      });
+    const result = await api.createStudentsBulk(token, studentsPayload);
+    setGlobalMessage(`Bulk complete: ${(result as any).createdCount} created, ${(result as any).failedCount} failed.`);
+  }
+
+  function exportFilteredStudents() {
+    downloadCsv(
+      'filtered_students.csv',
+      students.map((s) => ({
+        rollNumber: s.rollNumber,
+        fullName: s.fullName,
+        batch: s.batch,
+        branch: s.branch,
+        tenthPercentage: s.tenthPercentage ?? '',
+        interPercentage: s.interPercentage ?? '',
+        btechCgpa: s.btechCgpa ?? s.currentCgpa ?? '',
+        backlogsCount: s.backlogsCount ?? '',
+      })),
+    );
   }
 
   if (!token || !user) {
@@ -208,238 +375,217 @@ export default function App() {
 
   return (
     <div className="page">
-      <header className="header">
+      <header className="header glass slide-in">
         <div>
           <h1>Campus Credential Portal</h1>
-          <p className="muted">
-            Logged in as {user.username} ({user.role})
-          </p>
+          <p className="muted">Digital Student Locker | Documents, Internships, Courses</p>
+          <p className="muted">Logged in as {user.username} ({user.role})</p>
         </div>
         <button onClick={logout}>Logout</button>
       </header>
-      {globalMessage && <p className="message">{globalMessage}</p>}
+      {globalMessage && <p className="message pulse">{globalMessage}</p>}
 
-      {user.role === 'STUDENT' && (
-        <main className="grid">
-          <section className="card">
-            <h3>Profile</h3>
-            {loading ? <p>Loading...</p> : null}
-            {profile ? (
-              <ul>
-                <li>Roll Number: {profile.rollNumber}</li>
-                <li>Name: {profile.fullName}</li>
-                <li>Batch: {profile.batch}</li>
-                <li>Branch: {profile.branch}</li>
-                <li>10th %: {profile.tenthPercentage ?? 'N/A'}</li>
-              </ul>
-            ) : null}
-          </section>
+      {mustChangePassword && (
+        <section className="card glow">
+          <h3>First Login Password Change</h3>
+          <div className="stack">
+            <input type="password" placeholder="Current password" value={oldPassword} onChange={(e) => setOldPassword(e.target.value)} />
+            <input type="password" placeholder="New password" value={newPassword} onChange={(e) => setNewPassword(e.target.value)} />
+            <button onClick={changePasswordFirstTime}>Change Password</button>
+          </div>
+        </section>
+      )}
 
-          <section className="card">
-            <h3>Mandatory Document Status</h3>
-            <p>
-              Uploaded {mandatorySummary.mandatory.length - mandatorySummary.missing.length} /{' '}
-              {mandatorySummary.mandatory.length}
-            </p>
-            {mandatorySummary.missing.length > 0 ? (
-              <ul>
-                {mandatorySummary.missing.map((d) => (
-                  <li key={d.id}>{d.name} (missing)</li>
+      {!mustChangePassword && user.role === 'STUDENT' && (
+        <>
+          <nav className="card section-nav">
+            <a href="#mandatory-docs">Mandatory Documents</a>
+            <a href="#internship-certs">Internship Certifications</a>
+            <a href="#course-certs">Course Certifications</a>
+            <a href="#academic-section">Academic Scores</a>
+          </nav>
+          <main className="grid">
+            <section className="card fade-in" id="mandatory-docs">
+              <h3>Mandatory Documents</h3>
+              {loading ? <p>Loading...</p> : null}
+              <p>Uploaded {mandatorySummary.mandatory.length - mandatorySummary.missing.length}/{mandatorySummary.mandatory.length}</p>
+              <div className="stack">
+                <select value={selectedDocTypeId} onChange={(e) => setSelectedDocTypeId(e.target.value)}>
+                  {docTypes.map((d) => <option key={d.id} value={d.id}>{d.name}</option>)}
+                </select>
+                <select value={docVisibility} onChange={(e) => setDocVisibility(e.target.value as Visibility)}>
+                  <option value="SHARED">Shared</option>
+                  <option value="PRIVATE">Private</option>
+                </select>
+                <input type="file" onChange={(e) => setDocFile(e.target.files?.[0] || null)} />
+                <button onClick={uploadDocument}>Upload Document</button>
+              </div>
+              <ul className="list">
+                {documents.map((d) => (
+                  <li key={d.id} className="list-item">
+                    <div>
+                      <b>{d.documentType.name}</b> - {d.fileName}
+                      <div className="muted">Status: {d.status} | Remarks: {d.remarks || 'N/A'}</div>
+                    </div>
+                    <div className="row-actions">
+                      <a href={`http://localhost:5001/${d.filePath}`} target="_blank" rel="noreferrer"><button>View</button></a>
+                      <a href={`http://localhost:5001/${d.filePath}`} download><button>Download</button></a>
+                      <button onClick={() => toggleDocVisibility(d.id, d.visibility)}>Toggle</button>
+                      <input type="file" onChange={(e) => setReplaceDocFile((p) => ({ ...p, [d.id]: e.target.files?.[0] || null }))} />
+                      <button onClick={() => replaceDocument(d)}>Edit/Reupload</button>
+                      <button className="danger" onClick={() => deleteDocument(d.id)}>Delete</button>
+                    </div>
+                  </li>
                 ))}
               </ul>
-            ) : (
-              <p>All mandatory documents uploaded.</p>
-            )}
-          </section>
+            </section>
 
-          <section className="card">
-            <h3>Upload Document</h3>
-            <div className="stack">
-              <Field label="Document Type">
-                <select
-                  value={selectedDocTypeId}
-                  onChange={(e) => setSelectedDocTypeId(e.target.value)}
-                >
-                  {docTypes.map((dt) => (
-                    <option key={dt.id} value={dt.id}>
-                      {dt.name} {dt.isMandatory ? '(Mandatory)' : ''}
-                    </option>
-                  ))}
+            <section className="card fade-in" id="internship-certs">
+              <h3>Internship Certifications</h3>
+              <div className="stack">
+                <select value={selectedCertTypeId} onChange={(e) => setSelectedCertTypeId(e.target.value)}>
+                  <option value="">Select requirement field</option>
+                  {certTypes.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
                 </select>
-              </Field>
-              <Field label="Visibility">
-                <select value={docVisibility} onChange={(e) => setDocVisibility(e.target.value as Visibility)}>
-                  <option value="SHARED">Shared with College</option>
-                  <option value="PRIVATE">Private (only student)</option>
+                <input placeholder="Title" value={certTitle} onChange={(e) => setCertTitle(e.target.value)} />
+                <input placeholder="Provider" value={certProvider} onChange={(e) => setCertProvider(e.target.value)} />
+                <input placeholder="Category (Internship/Course/etc)" value={certCategory} onChange={(e) => setCertCategory(e.target.value)} />
+                <select value={certVisibility} onChange={(e) => setCertVisibility(e.target.value as Visibility)}>
+                  <option value="SHARED">Shared</option>
+                  <option value="PRIVATE">Private</option>
                 </select>
-              </Field>
-              <input type="file" onChange={(e) => setDocFile(e.target.files?.[0] || null)} />
-              <button onClick={uploadDocument}>Upload Document</button>
-            </div>
-          </section>
+                <input type="file" onChange={(e) => setCertFile(e.target.files?.[0] || null)} />
+                <button onClick={uploadCertification}>Upload Certification</button>
+              </div>
+            </section>
 
-          <section className="card">
-            <h3>My Documents</h3>
-            <ul className="list">
-              {documents.map((d) => (
-                <li key={d.id}>
-                  <b>{d.documentType.name}</b> - {d.fileName} - {d.visibility}
-                  <button onClick={() => toggleDocVisibility(d.id, d.visibility)}>
-                    Make {d.visibility === 'SHARED' ? 'Private' : 'Shared'}
-                  </button>
-                </li>
-              ))}
-            </ul>
-          </section>
+            <section className="card fade-in" id="course-certs">
+              <h3>Uploaded Certifications</h3>
+              <ul className="list">
+                {certifications.map((c) => (
+                  <li key={c.id} className="list-item">
+                    <div>
+                      <b>{c.title}</b> - {c.provider}
+                      <div className="muted">Field: {c.certificationType?.name || 'General'} | Status: {c.status} | Remarks: {c.remarks || 'N/A'}</div>
+                    </div>
+                    <div className="row-actions">
+                      <a href={`http://localhost:5001/${c.filePath}`} target="_blank" rel="noreferrer"><button>View</button></a>
+                      <a href={`http://localhost:5001/${c.filePath}`} download><button>Download</button></a>
+                      <button onClick={() => toggleCertVisibility(c.id, c.visibility)}>Toggle</button>
+                      <input type="file" onChange={(e) => setReplaceCertFile((p) => ({ ...p, [c.id]: e.target.files?.[0] || null }))} />
+                      <button onClick={() => replaceCertification(c)}>Edit/Reupload</button>
+                      <button className="danger" onClick={() => deleteCertification(c.id)}>Delete</button>
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            </section>
 
-          <section className="card">
-            <h3>Upload Certification</h3>
-            <div className="stack">
-              <input
-                placeholder="Certification Title (e.g. AWS Cloud Practitioner)"
-                value={certTitle}
-                onChange={(e) => setCertTitle(e.target.value)}
-              />
-              <input
-                placeholder="Provider (e.g. AWS)"
-                value={certProvider}
-                onChange={(e) => setCertProvider(e.target.value)}
-              />
-              <input
-                placeholder="Category (Optional)"
-                value={certCategory}
-                onChange={(e) => setCertCategory(e.target.value)}
-              />
-              <select value={certVisibility} onChange={(e) => setCertVisibility(e.target.value as Visibility)}>
-                <option value="SHARED">Shared with College</option>
-                <option value="PRIVATE">Private (only student)</option>
-              </select>
-              <input type="file" onChange={(e) => setCertFile(e.target.files?.[0] || null)} />
-              <button onClick={uploadCertification}>Upload Certification</button>
-            </div>
-          </section>
-
-          <section className="card">
-            <h3>My Certifications</h3>
-            <ul className="list">
-              {certifications.map((c) => (
-                <li key={c.id}>
-                  <b>{c.title}</b> - {c.provider} - {c.visibility}
-                  <button onClick={() => toggleCertVisibility(c.id, c.visibility)}>
-                    Make {c.visibility === 'SHARED' ? 'Private' : 'Shared'}
-                  </button>
-                </li>
-              ))}
-            </ul>
-          </section>
-        </main>
+            <section className="card fade-in" id="academic-section">
+              <h3>Academic Scores (Student Entry)</h3>
+              {profile && <p className="muted">{profile.rollNumber} - {profile.fullName}</p>}
+              <div className="stack cols-2">
+                <Field label="10th Marks"><input value={studentAcademic.tenthMarks} onChange={(e) => setStudentAcademic((p) => ({ ...p, tenthMarks: e.target.value }))} /></Field>
+                <Field label="10th %"><input value={studentAcademic.tenthPercentage} onChange={(e) => setStudentAcademic((p) => ({ ...p, tenthPercentage: e.target.value }))} /></Field>
+                <Field label="Inter Marks"><input value={studentAcademic.interMarks} onChange={(e) => setStudentAcademic((p) => ({ ...p, interMarks: e.target.value }))} /></Field>
+                <Field label="Inter %"><input value={studentAcademic.interPercentage} onChange={(e) => setStudentAcademic((p) => ({ ...p, interPercentage: e.target.value }))} /></Field>
+                <Field label="B.Tech CGPA"><input value={studentAcademic.btechCgpa} onChange={(e) => setStudentAcademic((p) => ({ ...p, btechCgpa: e.target.value }))} /></Field>
+                <Field label="B.Tech %"><input value={studentAcademic.btechPercentage} onChange={(e) => setStudentAcademic((p) => ({ ...p, btechPercentage: e.target.value }))} /></Field>
+                <Field label="Backlogs"><input value={studentAcademic.backlogsCount} onChange={(e) => setStudentAcademic((p) => ({ ...p, backlogsCount: e.target.value }))} /></Field>
+              </div>
+              <button onClick={saveAcademicProfile}>Save Academic Details</button>
+            </section>
+          </main>
+        </>
       )}
 
       {user.role === 'ADMIN' && (
         <main className="grid">
-          <section className="card">
-            <h3>Create Student Account</h3>
+          <section className="card fade-in">
+            <h3>Create Requirement Fields</h3>
             <div className="stack">
-              <input
-                placeholder="Roll Number"
-                value={newStudent.rollNumber}
-                onChange={(e) => setNewStudent((p) => ({ ...p, rollNumber: e.target.value }))}
-              />
-              <input
-                placeholder="Full Name"
-                value={newStudent.fullName}
-                onChange={(e) => setNewStudent((p) => ({ ...p, fullName: e.target.value }))}
-              />
-              <input
-                placeholder="Batch (e.g. 2026)"
-                value={newStudent.batch}
-                onChange={(e) => setNewStudent((p) => ({ ...p, batch: e.target.value }))}
-              />
-              <input
-                placeholder="Branch (e.g. CSE)"
-                value={newStudent.branch}
-                onChange={(e) => setNewStudent((p) => ({ ...p, branch: e.target.value }))}
-              />
-              <input
-                placeholder="Section"
-                value={newStudent.section}
-                onChange={(e) => setNewStudent((p) => ({ ...p, section: e.target.value }))}
-              />
-              <input
-                placeholder="Email"
-                value={newStudent.email}
-                onChange={(e) => setNewStudent((p) => ({ ...p, email: e.target.value }))}
-              />
-              <input
-                placeholder="Phone"
-                value={newStudent.phone}
-                onChange={(e) => setNewStudent((p) => ({ ...p, phone: e.target.value }))}
-              />
-              <input
-                placeholder="Default Password"
-                value={newStudent.defaultPassword}
-                onChange={(e) => setNewStudent((p) => ({ ...p, defaultPassword: e.target.value }))}
-              />
-              <button onClick={createStudent}>Create Student</button>
+              <input placeholder="New document field" value={newDocType} onChange={(e) => setNewDocType(e.target.value)} />
+              <button onClick={createDocumentRequirement}>Create Document Field</button>
+              <input placeholder="New certification field" value={newCertType} onChange={(e) => setNewCertType(e.target.value)} />
+              <button onClick={createCertificationRequirement}>Create Certification Field</button>
             </div>
           </section>
 
-          <section className="card">
-            <h3>Student Filters</h3>
-            <div className="stack">
-              <input
-                placeholder="Batch (e.g. 2026)"
-                value={filterBatch}
-                onChange={(e) => setFilterBatch(e.target.value)}
-              />
-              <input
-                placeholder="Branch (e.g. CSE)"
-                value={filterBranch}
-                onChange={(e) => setFilterBranch(e.target.value)}
-              />
-              <input
-                placeholder="10th % minimum (e.g. 80)"
-                value={filterMinTenth}
-                onChange={(e) => setFilterMinTenth(e.target.value)}
-              />
-              <input
-                placeholder="Certification keyword (e.g. AWS)"
-                value={filterCertification}
-                onChange={(e) => setFilterCertification(e.target.value)}
-              />
+          <section className="card fade-in">
+            <h3>Create Students</h3>
+            <div className="stack cols-2">
+              <input placeholder="Roll Number" value={newStudent.rollNumber} onChange={(e) => setNewStudent((p) => ({ ...p, rollNumber: e.target.value }))} />
+              <input placeholder="Full Name" value={newStudent.fullName} onChange={(e) => setNewStudent((p) => ({ ...p, fullName: e.target.value }))} />
+              <input placeholder="Batch" value={newStudent.batch} onChange={(e) => setNewStudent((p) => ({ ...p, batch: e.target.value }))} />
+              <input placeholder="Branch" value={newStudent.branch} onChange={(e) => setNewStudent((p) => ({ ...p, branch: e.target.value }))} />
+              <input placeholder="Section" value={newStudent.section} onChange={(e) => setNewStudent((p) => ({ ...p, section: e.target.value }))} />
+              <input placeholder="Email" value={newStudent.email} onChange={(e) => setNewStudent((p) => ({ ...p, email: e.target.value }))} />
+              <input placeholder="Phone" value={newStudent.phone} onChange={(e) => setNewStudent((p) => ({ ...p, phone: e.target.value }))} />
+              <input placeholder="Default Password" value={newStudent.defaultPassword} onChange={(e) => setNewStudent((p) => ({ ...p, defaultPassword: e.target.value }))} />
+            </div>
+            <button onClick={createStudent}>Create Student</button>
+            <p className="muted">Bulk format: roll,fullName,batch,branch,section,email,phone,password</p>
+            <textarea rows={6} value={bulkInput} onChange={(e) => setBulkInput(e.target.value)} />
+            <button onClick={createBulkStudents}>Create Bulk Students</button>
+          </section>
+
+          <section className="card fade-in">
+            <h3>Filter Students + Export</h3>
+            <div className="stack cols-2">
+              <input placeholder="Batch" value={filterBatch} onChange={(e) => setFilterBatch(e.target.value)} />
+              <input placeholder="Branch" value={filterBranch} onChange={(e) => setFilterBranch(e.target.value)} />
+              <input placeholder="Min 10th %" value={filterMinTenth} onChange={(e) => setFilterMinTenth(e.target.value)} />
+              <input placeholder="Min Inter %" value={filterMinInter} onChange={(e) => setFilterMinInter(e.target.value)} />
+              <input placeholder="Min B.Tech CGPA" value={filterMinBtechCgpa} onChange={(e) => setFilterMinBtechCgpa(e.target.value)} />
+              <input placeholder="Max Backlogs" value={filterMaxBacklogs} onChange={(e) => setFilterMaxBacklogs(e.target.value)} />
+            </div>
+            <div className="row-actions">
               <button onClick={runStudentFilters}>Apply Filters</button>
+              <button onClick={exportFilteredStudents}>Download Filtered Data (Excel CSV)</button>
             </div>
             <ul className="list">
               {students.map((s) => (
-                <li key={s.id}>
-                  <b>{s.rollNumber}</b> - {s.fullName} ({s.branch})
-                  <button onClick={() => viewStudentDetails(s.id)}>View Details</button>
+                <li key={s.id} className="list-item">
+                  <span><b>{s.rollNumber}</b> - {s.fullName}</span>
+                  <button onClick={() => viewStudent(s.id)}>View</button>
                 </li>
               ))}
             </ul>
           </section>
 
-          <section className="card">
-            <h3>Selected Student Details</h3>
-            {!selectedStudent ? <p>Select a student from filter results.</p> : null}
+          <section className="card fade-in">
+            <h3>Admin Review</h3>
+            {!selectedStudent ? <p>Select a student to review uploads.</p> : null}
             {selectedStudent ? (
               <>
-                <p>
-                  <b>{selectedStudent.rollNumber}</b> - {selectedStudent.fullName}
-                </p>
-                <p>Shared Documents</p>
+                <p><b>{selectedStudent.rollNumber}</b> - {selectedStudent.fullName}</p>
+                <h4>Documents</h4>
                 <ul className="list">
-                  {selectedStudent.documents.map((d: any) => (
-                    <li key={d.id}>
-                      {d.documentType.name} - {d.fileName}
+                  {selectedStudent.documents.map((d: StudentDocument) => (
+                    <li key={d.id} className="list-item">
+                      <div>{d.documentType.name} - {d.fileName} ({d.status})</div>
+                      <div className="row-actions">
+                        <a href={`http://localhost:5001/${d.filePath}`} target="_blank" rel="noreferrer"><button>View</button></a>
+                        <a href={`http://localhost:5001/${d.filePath}`} download><button>Download</button></a>
+                        <input placeholder="Remarks" value={reviewRemarks[d.id] || ''} onChange={(e) => setReviewRemarks((p) => ({ ...p, [d.id]: e.target.value }))} />
+                        <button onClick={() => reviewDocument(d.id, 'APPROVED')}>Accept</button>
+                        <button className="danger" onClick={() => reviewDocument(d.id, 'REJECTED')}>Reject</button>
+                      </div>
                     </li>
                   ))}
                 </ul>
-                <p>Shared Certifications</p>
+                <h4>Certifications</h4>
                 <ul className="list">
-                  {selectedStudent.certifications.map((c: any) => (
-                    <li key={c.id}>
-                      {c.title} - {c.provider}
+                  {selectedStudent.certifications.map((c: Certification) => (
+                    <li key={c.id} className="list-item">
+                      <div>{c.title} - {c.provider} ({c.status})</div>
+                      <div className="row-actions">
+                        <a href={`http://localhost:5001/${c.filePath}`} target="_blank" rel="noreferrer"><button>View</button></a>
+                        <a href={`http://localhost:5001/${c.filePath}`} download><button>Download</button></a>
+                        <input placeholder="Remarks" value={reviewRemarks[c.id] || ''} onChange={(e) => setReviewRemarks((p) => ({ ...p, [c.id]: e.target.value }))} />
+                        <button onClick={() => reviewCertification(c.id, 'APPROVED')}>Accept</button>
+                        <button className="danger" onClick={() => reviewCertification(c.id, 'REJECTED')}>Reject</button>
+                      </div>
                     </li>
                   ))}
                 </ul>

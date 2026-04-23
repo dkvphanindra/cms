@@ -71,6 +71,15 @@ model DocumentType {
   documents   StudentDocument[]
 }
 
+model CertificationType {
+  id          String   @id @default(uuid())
+  name        String   @unique
+  isMandatory Boolean  @default(false)
+  createdAt   DateTime @default(now())
+
+  certifications Certification[]
+}
+
 model StudentDocument {
   id             String         @id @default(uuid())
   studentId      String
@@ -95,6 +104,7 @@ model StudentDocument {
 model Certification {
   id              String     @id @default(uuid())
   studentId       String
+  certificationTypeId String?
   title           String
   provider        String
   category        String?
@@ -113,6 +123,7 @@ model Certification {
   updatedAt       DateTime   @updatedAt
 
   student         Student    @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  certificationType CertificationType? @relation(fields: [certificationTypeId], references: [id], onDelete: SetNull)
 
   @@index([studentId])
   @@index([title])

@@ -1,16 +1,14 @@
 import { IsDateString, IsEnum, IsOptional, IsString } from 'class-validator';
 import { Visibility } from '@prisma/client';
 
-export class UploadCertificationDto {
+export class UpdateCertificationDto {
   @IsOptional()
   @IsString()
-  certificationTypeId?: string;
+  title?: string;
 
+  @IsOptional()
   @IsString()
-  title: string;
-
-  @IsString()
-  provider: string;
+  provider?: string;
 
   @IsOptional()
   @IsString()

@@ -1,4 +1,4 @@
-import { Injectable, ForbiddenException, NotFoundException } from '@nestjs/common';
+import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateStudentDto } from './dto/create-student.dto';
 import * as bcrypt from 'bcrypt';
@@ -31,14 +31,37 @@ export class StudentsService {
         batch: dto.batch,
         branch: dto.branch,
         section: dto.section,
-        tenthPercentage: dto.tenthPercentage,
-        interPercentage: dto.interPercentage,
-        currentCgpa: dto.currentCgpa,
+        // Academic scores are intentionally filled by student after first login.
         backlogsCount: dto.backlogsCount || 0,
       },
     });
 
     return student;
+  }
+
+  async createStudentsBulk(students: CreateStudentDto[]) {
+    const created: any[] = [];
+    const failed: Array<{ rollNumber: string; reason: string }> = [];
+
+    for (const dto of students) {
+      try {
+        const student = await this.createStudent(dto);
+        created.push(student);
+      } catch (error) {
+        failed.push({
+          rollNumber: dto.rollNumber,
+          reason: (error as Error).message,
+        });
+      }
+    }
+
+    return {
+      total: students.length,
+      createdCount: created.length,
+      failedCount: failed.length,
+      created,
+      failed,
+    };
   }
 
   async getMyProfile(userId: string) {
@@ -72,6 +95,27 @@ export class StudentsService {
     if (filters.minTenth) {
       where.tenthPercentage = { gte: Number(filters.minTenth) };
     }
+    if (filters.maxTenth) {
+      where.tenthPercentage = {
+        ...(where.tenthPercentage || {}),
+        lte: Number(filters.maxTenth),
+      };
+    }
+    if (filters.minInter) {
+      where.interPercentage = { gte: Number(filters.minInter) };
+    }
+    if (filters.maxInter) {
+      where.interPercentage = {
+        ...(where.interPercentage || {}),
+        lte: Number(filters.maxInter),
+      };
+    }
+    if (filters.minBtechCgpa) {
+      where.btechCgpa = { gte: Number(filters.minBtechCgpa) };
+    }
+    if (filters.maxBacklogs) {
+      where.backlogsCount = { lte: Number(filters.maxBacklogs) };
+    }
 
     if (filters.certification) {
       where.certifications = {
@@ -102,11 +146,11 @@ export class StudentsService {
       where: { id: studentId },
       include: {
         documents: {
-          where: { visibility: Visibility.SHARED },
           include: { documentType: true },
         },
         certifications: {
-          where: { visibility: Visibility.SHARED },
+          include: { certificationType: true },
+          orderBy: { createdAt: 'desc' },
         },
       },
     });

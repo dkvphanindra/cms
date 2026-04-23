@@ -34,7 +34,15 @@ export class CreateStudentDto {
 
   @IsOptional()
   @IsNumber()
+  tenthMarks?: number;
+
+  @IsOptional()
+  @IsNumber()
   tenthPercentage?: number;
+
+  @IsOptional()
+  @IsNumber()
+  interMarks?: number;
 
   @IsOptional()
   @IsNumber()
@@ -42,7 +50,15 @@ export class CreateStudentDto {
 
   @IsOptional()
   @IsNumber()
+  btechCgpa?: number;
+
+  @IsOptional()
+  @IsNumber()
   currentCgpa?: number;
+
+  @IsOptional()
+  @IsNumber()
+  btechPercentage?: number;
 
   @IsOptional()
   @IsInt()
