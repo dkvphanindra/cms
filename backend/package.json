@@ -4,7 +4,7 @@
   "private": true,
   "description": "Certificates Management Portal (CMP) Backend",
   "scripts": {
-    "build": "nest build",
+    "build": "npx nest build",
     "start": "node dist/src/main",
     "start:dev": "nest start --watch",
     "start:debug": "nest start --debug --watch",
@@ -28,10 +28,10 @@
     "passport": "^0.7.0",
     "passport-jwt": "^4.0.1",
     "reflect-metadata": "^0.2.2",
-    "rxjs": "^7.8.1"
+    "rxjs": "^7.8.1",
+    "@nestjs/cli": "^10.4.8"
   },
   "devDependencies": {
-    "@nestjs/cli": "^10.4.8",
     "@nestjs/schematics": "^10.2.3",
     "@nestjs/testing": "^10.4.8",
     "@types/bcrypt": "^5.0.2",

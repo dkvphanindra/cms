@@ -89,8 +89,17 @@ The frontend uses Vite proxy (`/api`) in development to avoid CORS issues.
 4. **Environment Variables**:
    - `DATABASE_URL`: Your PostgreSQL connection string.
    - `JWT_SECRET`: A long random string.
+   - `NODE_ENV`: `production`
    - `PORT`: `5001` (or whatever Render assigns).
    - `FRONTEND_ORIGIN`: Your Vercel frontend URL (e.g., `https://your-app.vercel.app`).
+
+### **CRITICAL: Fix for "Can't reach database server at localhost"**
+If your logs show an error connecting to `localhost:5000` on Render, it's because your `.env` file was accidentally committed to Git. Follow these steps:
+1. Open your terminal in the project root.
+2. Run: `git rm --cached backend/.env`
+3. Run: `git commit -m "Remove local env from tracking"`
+4. Run: `git push origin main`
+5. Render will re-deploy, and this time it will use the environment variables you set in the Render Dashboard.
 5. **Disk (Optional but Recommended)**: Since this project uses local file storage, files will be lost on redeploy on Render's free tier. For persistent storage:
    - Go to the **Disk** tab in Render.
    - Add a Disk with Mount Path: `/opt/render/project/src/backend/uploads`.

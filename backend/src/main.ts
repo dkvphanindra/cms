@@ -5,7 +5,9 @@ import { join } from 'path';
 import { NestExpressApplication } from '@nestjs/platform-express';
 import { config as loadEnv } from 'dotenv';
 
-loadEnv({ override: true });
+if (process.env.NODE_ENV !== 'production') {
+  loadEnv();
+}
 
 async function bootstrap() {
   const app = await NestFactory.create<NestExpressApplication>(AppModule);
