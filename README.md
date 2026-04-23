@@ -84,7 +84,7 @@ The frontend uses Vite proxy (`/api`) in development to avoid CORS issues.
 3. **Configuration**:
    - **Root Directory**: `backend`
    - **Environment**: `Node`
-   - **Build Command**: `npm install && npm run build && npx prisma generate`
+   - **Build Command**: `npm install && npx prisma generate && npm run build`
    - **Start Command**: `npm run start`
 4. **Environment Variables**:
    - `DATABASE_URL`: Your PostgreSQL connection string.
