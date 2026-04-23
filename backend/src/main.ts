@@ -18,7 +18,8 @@ async function bootstrap() {
 
   app.useGlobalPipes(new ValidationPipe({ whitelist: true }));
 
-  app.useStaticAssets(join(__dirname, '..', 'uploads'), {
+  // Use process.cwd() to ensure we look for uploads in the project root
+  app.useStaticAssets(join(process.cwd(), 'uploads'), {
     prefix: '/uploads/',
   });
 

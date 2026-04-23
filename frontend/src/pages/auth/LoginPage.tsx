@@ -25,7 +25,7 @@ export default function LoginPage({ onLoginSuccess }: Props) {
 
   return (
     <div className="auth-card">
-      <h2>Campus Credential Portal</h2>
+      <h2>Certificates Management Portal (CMP)</h2>
       <p className="muted">Login using roll number (student) or admin username.</p>
       <form onSubmit={onSubmit} className="stack">
         <input

@@ -24,7 +24,7 @@ import { DocumentStatus, Visibility } from '@prisma/client';
 import { UpdateCertificationDto } from './dto/update-certification.dto';
 import { ReviewCertificationDto } from './dto/review-certification.dto';
 
-const certificationsUploadPath = 'uploads/certifications';
+const certificationsUploadPath = './uploads/certifications';
 mkdirSync(certificationsUploadPath, { recursive: true });
 
 @Controller('certifications')

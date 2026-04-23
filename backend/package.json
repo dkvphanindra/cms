@@ -2,7 +2,7 @@
   "name": "campus-credential-backend",
   "version": "1.0.0",
   "private": true,
-  "description": "Campus Credential & Placement Readiness Management System Backend",
+  "description": "Certificates Management Portal (CMP) Backend",
   "scripts": {
     "build": "nest build",
     "start": "node dist/main",

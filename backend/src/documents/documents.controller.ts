@@ -24,7 +24,7 @@ import { DocumentStatus, Visibility } from '@prisma/client';
 import { UpdateDocumentDto } from './dto/update-document.dto';
 import { ReviewDocumentDto } from './dto/review-document.dto';
 
-const documentsUploadPath = 'uploads/documents';
+const documentsUploadPath = './uploads/documents';
 mkdirSync(documentsUploadPath, { recursive: true });
 
 @Controller('documents')

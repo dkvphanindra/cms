@@ -1,6 +1,6 @@
-# Campus Credential Portal
+# Certificates Management Portal (CMP)
 
-Campus document and certification management system for students and college administration.
+A centralized document and certification management system for students and college administration.
 
 ## Features
 
@@ -74,6 +74,43 @@ The frontend uses Vite proxy (`/api`) in development to avoid CORS issues.
 
 - Backend build: `cd backend && npm run build`
 - Frontend build: `cd frontend && npm run build`
+
+## Deployment Guide
+
+### Backend (Deploying to Render)
+
+1. **Database**: Create a free PostgreSQL database on Render or Supabase.
+2. **Web Service**: Create a new Web Service on Render and connect your GitHub repository.
+3. **Configuration**:
+   - **Root Directory**: `backend`
+   - **Environment**: `Node`
+   - **Build Command**: `npm install && npm run build && npx prisma generate`
+   - **Start Command**: `npm run start`
+4. **Environment Variables**:
+   - `DATABASE_URL`: Your PostgreSQL connection string.
+   - `JWT_SECRET`: A long random string.
+   - `PORT`: `5001` (or whatever Render assigns).
+   - `FRONTEND_ORIGIN`: Your Vercel frontend URL (e.g., `https://your-app.vercel.app`).
+5. **Disk (Optional but Recommended)**: Since this project uses local file storage, files will be lost on redeploy on Render's free tier. For persistent storage:
+   - Go to the **Disk** tab in Render.
+   - Add a Disk with Mount Path: `/opt/render/project/src/backend/uploads`.
+   - Update `backend/src/main.ts` to use this absolute path if necessary.
+
+### Frontend (Deploying to Vercel)
+
+1. **New Project**: Create a new project on Vercel and connect your GitHub repository.
+2. **Configuration**:
+   - **Root Directory**: `frontend`
+   - **Framework Preset**: `Vite`
+   - **Build Command**: `npm run build`
+   - **Output Directory**: `dist`
+3. **Environment Variables**:
+   - `VITE_API_BASE_URL`: `/api`
+4. **Proxy Setup**:
+   - A `vercel.json` file has been added to the `frontend` folder. 
+   - **IMPORTANT**: Update the `destination` in `frontend/vercel.json` to point to your actual Render backend URL (e.g., `https://your-backend.onrender.com/:path*`).
+
+---
 
 ## Production Notes
 

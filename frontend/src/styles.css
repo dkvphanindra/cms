@@ -202,6 +202,71 @@ button:active {
   }
 }
 
+.section-nav button {
+  font-weight: 600;
+  color: #1d4ed8;
+  padding: 8px 14px;
+  border-radius: 8px;
+  background: #eff6ff;
+  border: 1px solid #dbeafe;
+}
+
+.section-nav button.active {
+  background: #2563eb;
+  color: #ffffff;
+}
+
+.dashboard-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+  gap: 20px;
+  margin-top: 20px;
+}
+
+.dashboard-card {
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  min-height: 160px;
+  text-align: center;
+  border: 2px solid transparent;
+}
+
+.dashboard-card:hover {
+  border-color: #3b82f6;
+  background: #ffffff;
+}
+
+.dashboard-card h3 {
+  margin: 0;
+  color: #1e40af;
+}
+
+.dashboard-card p {
+  color: #64748b;
+  font-size: 0.95rem;
+}
+
+.dashboard-card button {
+  align-self: center;
+  width: fit-content;
+}
+
+.replace-action {
+  display: flex;
+  gap: 4px;
+  align-items: center;
+  background: #f1f5f9;
+  padding: 4px;
+  border-radius: 8px;
+}
+
+.replace-action input[type="file"] {
+  max-width: 150px;
+  font-size: 12px;
+}
+
 @media (max-width: 768px) {
   .page {
     padding: 12px;
