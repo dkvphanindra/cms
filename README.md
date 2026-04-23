@@ -32,10 +32,11 @@ Campus document and certification management system for students and college adm
    - `cd backend`
 2. Install dependencies:
    - `npm install`
-3. Create/update `backend/.env`:
-   - `DATABASE_URL="postgresql://postgres:ZXasdqwer1!@localhost:5432/campus_credential?schema=public"`
-   - `JWT_SECRET="change_this_to_a_long_random_secret"`
-   - `PORT=5000`
+3. Create `backend/.env` from `backend/.env.example` and update values:
+   - `DATABASE_URL` (set the correct PostgreSQL port for your machine)
+   - `JWT_SECRET`
+   - `PORT=5001`
+   - `FRONTEND_ORIGIN=http://localhost:5173`
 4. Run migrations:
    - `npx prisma migrate dev --name init`
 5. Generate Prisma client:
@@ -45,7 +46,9 @@ Campus document and certification management system for students and college adm
 7. Start backend:
    - `npm run start:dev`
 
-Backend runs on: `http://localhost:5000`
+Backend runs on: `http://localhost:5001`
+
+If backend shows Prisma `P1000`/`P1001`, fix `DATABASE_URL` in `backend/.env` (host/port/user/password).
 
 Default admin from seed:
 - Username: `admin`
@@ -57,10 +60,15 @@ Default admin from seed:
    - `cd frontend`
 2. Install dependencies:
    - `npm install`
-3. Start frontend:
+3. Create `frontend/.env` from `frontend/.env.example`:
+   - `VITE_API_BASE_URL=/api`
+   - `VITE_API_PROXY_TARGET=http://localhost:5001`
+4. Start frontend:
    - `npm run dev`
 
 Frontend runs on: `http://localhost:5173`
+
+The frontend uses Vite proxy (`/api`) in development to avoid CORS issues.
 
 ## Build Commands
 

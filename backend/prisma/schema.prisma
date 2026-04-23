@@ -46,9 +46,13 @@ model Student {
   batch           Int
   branch          String
   section         String?
+  tenthMarks      Float?
   tenthPercentage Float?
+  interMarks      Float?
   interPercentage Float?
+  btechCgpa       Float?
   currentCgpa     Float?
+  btechPercentage Float?
   backlogsCount   Int      @default(0)
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
@@ -103,6 +107,8 @@ model Certification {
   mimeType        String
   fileSize        Int
   visibility      Visibility @default(SHARED)
+  status          DocumentStatus @default(PENDING)
+  remarks         String?
   createdAt       DateTime   @default(now())
   updatedAt       DateTime   @updatedAt
 

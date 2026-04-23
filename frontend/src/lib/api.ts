@@ -1,6 +1,6 @@
 import { LoginResponse } from '../types';
 
-const API_BASE = 'http://localhost:5000';
+const API_BASE = ((import.meta.env.VITE_API_BASE_URL as string | undefined)?.trim() || '/api').replace(/\/+$/, '');
 
 function buildHeaders(token?: string, isJson = true): HeadersInit {
   const headers: Record<string, string> = {};
@@ -24,102 +24,114 @@ async function parseResponse<T>(response: Response): Promise<T> {
   return response.json() as Promise<T>;
 }
 
+async function request<T>(path: string, init?: RequestInit): Promise<T> {
+  try {
+    const response = await fetch(`${API_BASE}${path}`, init);
+    return parseResponse<T>(response);
+  } catch (error: unknown) {
+    if (error instanceof TypeError) {
+      throw new Error(`Unable to reach server. Check backend and API settings (API base: ${API_BASE}).`);
+    }
+    throw error;
+  }
+}
+
 export const api = {
   login(username: string, password: string) {
-    return fetch(`${API_BASE}/auth/login`, {
+    return request<LoginResponse>('/auth/login', {
       method: 'POST',
       headers: buildHeaders(),
       body: JSON.stringify({ username, password }),
-    }).then(parseResponse<LoginResponse>);
+    });
   },
 
   changePassword(token: string, oldPassword: string, newPassword: string) {
-    return fetch(`${API_BASE}/auth/change-password`, {
+    return request<{ message: string }>('/auth/change-password', {
       method: 'POST',
       headers: buildHeaders(token),
       body: JSON.stringify({ oldPassword, newPassword }),
-    }).then(parseResponse<{ message: string }>);
+    });
   },
 
   getMyProfile(token: string) {
-    return fetch(`${API_BASE}/students/me`, {
+    return request('/students/me', {
       headers: buildHeaders(token, false),
-    }).then(parseResponse);
+    });
   },
 
   updateMyProfile(token: string, data: Record<string, unknown>) {
-    return fetch(`${API_BASE}/students/me`, {
+    return request('/students/me', {
       method: 'PATCH',
       headers: buildHeaders(token),
       body: JSON.stringify(data),
-    }).then(parseResponse);
+    });
   },
 
   getDocumentTypes(token: string) {
-    return fetch(`${API_BASE}/document-types`, {
+    return request('/document-types', {
       headers: buildHeaders(token, false),
-    }).then(parseResponse);
+    });
   },
 
   getMyDocuments(token: string) {
-    return fetch(`${API_BASE}/documents/me`, {
+    return request('/documents/me', {
       headers: buildHeaders(token, false),
-    }).then(parseResponse);
+    });
   },
 
   uploadDocument(token: string, formData: FormData) {
-    return fetch(`${API_BASE}/documents/upload`, {
+    return request('/documents/upload', {
       method: 'POST',
       headers: buildHeaders(token, false),
       body: formData,
-    }).then(parseResponse);
+    });
   },
 
   updateDocumentVisibility(token: string, id: string, visibility: 'SHARED' | 'PRIVATE') {
-    return fetch(`${API_BASE}/documents/${id}/visibility/${visibility}`, {
+    return request(`/documents/${id}/visibility/${visibility}`, {
       method: 'PATCH',
       headers: buildHeaders(token, false),
-    }).then(parseResponse);
+    });
   },
 
   getMyCertifications(token: string) {
-    return fetch(`${API_BASE}/certifications/me`, {
+    return request('/certifications/me', {
       headers: buildHeaders(token, false),
-    }).then(parseResponse);
+    });
   },
 
   uploadCertification(token: string, formData: FormData) {
-    return fetch(`${API_BASE}/certifications/upload`, {
+    return request('/certifications/upload', {
       method: 'POST',
       headers: buildHeaders(token, false),
       body: formData,
-    }).then(parseResponse);
+    });
   },
 
   updateCertificationVisibility(token: string, id: string, visibility: 'SHARED' | 'PRIVATE') {
-    return fetch(`${API_BASE}/certifications/${id}/visibility/${visibility}`, {
+    return request(`/certifications/${id}/visibility/${visibility}`, {
       method: 'PATCH',
       headers: buildHeaders(token, false),
-    }).then(parseResponse);
+    });
   },
 
   getStudents(token: string, query: string) {
-    return fetch(`${API_BASE}/students${query}`, {
+    return request(`/students${query}`, {
       headers: buildHeaders(token, false),
-    }).then(parseResponse);
+    });
   },
 
   getStudentById(token: string, id: string) {
-    return fetch(`${API_BASE}/students/${id}`, {
+    return request(`/students/${id}`, {
       headers: buildHeaders(token, false),
-    }).then(parseResponse);
+    });
   },
 
   createStudent(token: string, payload: Record<string, unknown>) {
-    return fetch(`${API_BASE}/students`, {
+    return request('/students', {
       method: 'POST',
       headers: buildHeaders(token),
       body: JSON.stringify(payload),
-    }).then(parseResponse);
+    });
   },
 };
