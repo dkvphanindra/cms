@@ -84,7 +84,7 @@ The frontend uses Vite proxy (`/api`) in development to avoid CORS issues.
 3. **Configuration**:
    - **Root Directory**: `backend`
    - **Environment**: `Node`
-   - **Build Command**: `npm install && npx prisma generate && npm run build`
+   - **Build Command**: `npm install && npx prisma generate && npx prisma migrate deploy && npm run prisma:seed && npm run build`
    - **Start Command**: `npm run start`
 4. **Environment Variables**:
    - `DATABASE_URL`: Your PostgreSQL connection string.
@@ -92,6 +92,24 @@ The frontend uses Vite proxy (`/api`) in development to avoid CORS issues.
    - `NODE_ENV`: `production`
    - `PORT`: `5001` (or whatever Render assigns).
    - `FRONTEND_ORIGIN`: Your Vercel frontend URL (e.g., `https://your-app.vercel.app`).
+
+---
+
+### **Fixing "Internal Server Error" on Login**
+If you see "Internal Server Error" when logging in, it's likely because the database tables haven't been created or the admin user hasn't been seeded.
+
+**Solution**:
+Update your **Build Command** in Render to include migration and seeding:
+`npm install && npx prisma generate && npx prisma migrate deploy && npm run prisma:seed && npm run build`
+
+This command does 4 things:
+1. Installs dependencies.
+2. Generates the Prisma client.
+3. **Creates the database tables** (`migrate deploy`).
+4. **Creates the admin account** (`prisma:seed`).
+5. Builds the project.
+
+---
 
 ### **CRITICAL: Fix for "Can't reach database server at localhost"**
 If your logs show an error connecting to `localhost:5000` on Render, it's because your `.env` file was accidentally committed to Git. Follow these steps:
