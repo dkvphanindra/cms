@@ -226,4 +226,40 @@ export const api = {
       body: JSON.stringify({ students }),
     });
   },
+
+  updateStudent(token: string, id: string, payload: Record<string, unknown>) {
+    return request(`/students/${id}`, {
+      method: 'PATCH',
+      headers: buildHeaders(token),
+      body: JSON.stringify(payload),
+    });
+  },
+
+  deleteStudent(token: string, id: string) {
+    return request(`/students/${id}/delete`, {
+      method: 'POST',
+      headers: buildHeaders(token, false),
+    });
+  },
+
+  getAnnouncements(token: string) {
+    return request('/announcements', {
+      headers: buildHeaders(token, false),
+    });
+  },
+
+  createAnnouncement(token: string, payload: Record<string, unknown>) {
+    return request('/announcements', {
+      method: 'POST',
+      headers: buildHeaders(token),
+      body: JSON.stringify(payload),
+    });
+  },
+
+  deleteAnnouncement(token: string, id: string) {
+    return request(`/announcements/${id}`, {
+      method: 'DELETE',
+      headers: buildHeaders(token, false),
+    });
+  },
 };

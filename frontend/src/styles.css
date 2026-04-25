@@ -65,6 +65,10 @@
   grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
 }
 
+.cols-3 {
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+}
+
 .field {
   display: grid;
   gap: 6px;
@@ -140,8 +144,23 @@ button:active {
   align-items: center;
 }
 
-.glass {
-  border: 1px solid rgba(255, 255, 255, 0.8);
+.badge {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-size: 0.75rem;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.badge-pending { background: #fef3c7; color: #92400e; }
+.badge-approved { background: #dcfce7; color: #166534; }
+.badge-rejected { background: #fee2e2; color: #991b1b; }
+
+.table-container {
+  border-radius: 10px;
+  border: 1px solid #e2e8f0;
+  background: #ffffff;
 }
 
 .glow {
@@ -238,6 +257,15 @@ button:active {
   background: #ffffff;
 }
 
+.announcement-card {
+  transition: all 0.2s ease;
+}
+
+.announcement-card:hover {
+  transform: scale(1.01) translateX(4px);
+  background: #ffffff;
+}
+
 .dashboard-card h3 {
   margin: 0;
   color: #1e40af;
@@ -275,14 +303,44 @@ button:active {
   .header {
     flex-direction: column;
     align-items: flex-start;
+    text-align: center;
+    width: 100%;
+  }
+
+  .header div {
+    width: 100%;
+  }
+
+  .header button {
+    width: 100%;
+    margin-top: 10px;
+  }
+
+  .section-nav {
+    justify-content: center;
+  }
+
+  .section-nav button {
+    flex: 1 1 40%;
+    font-size: 13px;
   }
 
   .grid {
     grid-template-columns: 1fr;
   }
 
+  .dashboard-grid {
+    grid-template-columns: 1fr;
+  }
+
   .row-actions {
     width: 100%;
+    justify-content: space-between;
+  }
+
+  .row-actions button, .row-actions a {
+    flex: 1;
+    text-align: center;
   }
 
   input,
@@ -290,5 +348,12 @@ button:active {
   select,
   button {
     font-size: 16px;
+  }
+
+  .table-container {
+    margin: 0 -12px;
+    border-radius: 0;
+    border-left: none;
+    border-right: none;
   }
 }

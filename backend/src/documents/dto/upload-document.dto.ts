@@ -6,6 +6,10 @@ export class UploadDocumentDto {
   documentTypeId: string;
 
   @IsOptional()
+  @IsString()
+  requirement?: string;
+
+  @IsOptional()
   @IsEnum(Visibility)
   visibility?: Visibility;
 }

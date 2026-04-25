@@ -6,6 +6,10 @@ export class UploadCertificationDto {
   @IsString()
   certificationTypeId?: string;
 
+  @IsOptional()
+  @IsString()
+  requirement?: string;
+
   @IsString()
   title: string;
 

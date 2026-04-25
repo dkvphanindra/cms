@@ -37,10 +37,11 @@ export default function App() {
     return raw ? (JSON.parse(raw) as AuthUser) : null;
   });
   const [globalMessage, setGlobalMessage] = useState('');
+  const [errorMessage, setErrorMessage] = useState('');
   const [loading, setLoading] = useState(false);
 
-  const [studentView, setStudentView] = useState<'dashboard' | 'documents' | 'certifications' | 'academic' | 'settings'>('dashboard');
-  const [adminView, setAdminView] = useState<'dashboard' | 'students' | 'requirements' | 'settings'>('dashboard');
+  const [studentView, setStudentView] = useState<'dashboard' | 'documents' | 'certifications' | 'academic' | 'announcements' | 'settings'>('dashboard');
+  const [adminView, setAdminView] = useState<'dashboard' | 'students' | 'requirements' | 'announcements' | 'settings'>('dashboard');
 
   const getFileUrl = (path: string) => {
     if (!path) return '#';
@@ -54,9 +55,12 @@ export default function App() {
   const [certTypes, setCertTypes] = useState<DocumentType[]>([]);
   const [documents, setDocuments] = useState<StudentDocument[]>([]);
   const [certifications, setCertifications] = useState<Certification[]>([]);
+  const [announcements, setAnnouncements] = useState<any[]>([]);
 
   const [selectedDocTypeId, setSelectedDocTypeId] = useState('');
   const [selectedCertTypeId, setSelectedCertTypeId] = useState('');
+  const [docRequirement, setDocRequirement] = useState('');
+  const [certRequirement, setCertRequirement] = useState('');
   const [docVisibility, setDocVisibility] = useState<Visibility>('SHARED');
   const [certVisibility, setCertVisibility] = useState<Visibility>('SHARED');
   const [docFile, setDocFile] = useState<File | null>(null);
@@ -73,13 +77,23 @@ export default function App() {
 
   const [filterBatch, setFilterBatch] = useState('');
   const [filterBranch, setFilterBranch] = useState('');
+  const [filterSearch, setFilterSearch] = useState('');
   const [filterMinTenth, setFilterMinTenth] = useState('');
   const [filterMinInter, setFilterMinInter] = useState('');
   const [filterMinBtechCgpa, setFilterMinBtechCgpa] = useState('');
   const [filterMaxBacklogs, setFilterMaxBacklogs] = useState('');
   const [students, setStudents] = useState<StudentProfile[]>([]);
   const [selectedStudent, setSelectedStudent] = useState<any | null>(null);
+  const [editingStudent, setEditingStudent] = useState<any | null>(null);
+  const [selectedAnnouncement, setSelectedAnnouncement] = useState<any | null>(null);
   const [reviewRemarks, setReviewRemarks] = useState<Record<string, string>>({});
+
+  const [newAnnouncement, setNewAnnouncement] = useState({
+    title: '',
+    description: '',
+    type: 'OTHER',
+    link: '',
+  });
 
   const [newStudent, setNewStudent] = useState({
     rollNumber: '',
@@ -91,6 +105,25 @@ export default function App() {
     section: '',
     defaultPassword: 'Student@123',
   });
+
+  const groupedDocuments = useMemo(() => {
+    return documents.reduce((acc, doc) => {
+      const req = doc.requirement || 'General';
+      if (!acc[req]) acc[req] = [];
+      acc[req].push(doc);
+      return acc;
+    }, {} as Record<string, StudentDocument[]>);
+  }, [documents]);
+
+  const groupedCertifications = useMemo(() => {
+    return certifications.reduce((acc, cert) => {
+      const req = cert.requirement || 'General';
+      if (!acc[req]) acc[req] = [];
+      acc[req].push(cert);
+      return acc;
+    }, {} as Record<string, Certification[]>);
+  }, [certifications]);
+
   const [bulkInput, setBulkInput] = useState('');
   const [newDocType, setNewDocType] = useState('');
   const [newCertType, setNewCertType] = useState('');
@@ -116,12 +149,13 @@ export default function App() {
   async function loadStudentData(activeToken: string) {
     setLoading(true);
     try {
-      const [myProfile, allDocTypes, allCertTypes, myDocs, myCerts] = await Promise.all([
+      const [myProfile, allDocTypes, allCertTypes, myDocs, myCerts, allAnnouncements] = await Promise.all([
         api.getMyProfile(activeToken),
         api.getDocumentTypes(activeToken),
         api.getCertificationTypes(activeToken),
         api.getMyDocuments(activeToken),
         api.getMyCertifications(activeToken),
+        api.getAnnouncements(activeToken),
       ]);
       const docTypeData = allDocTypes as DocumentType[];
       const certTypeData = allCertTypes as DocumentType[];
@@ -130,6 +164,7 @@ export default function App() {
       setCertTypes(certTypeData);
       setDocuments(myDocs as StudentDocument[]);
       setCertifications(myCerts as Certification[]);
+      setAnnouncements(allAnnouncements as any[]);
       setStudentAcademic({
         tenthMarks: String((myProfile as StudentProfile).tenthMarks ?? ''),
         tenthPercentage: String((myProfile as StudentProfile).tenthPercentage ?? ''),
@@ -174,9 +209,16 @@ export default function App() {
 
   async function changePasswordFirstTime() {
     if (!token || !oldPassword || !newPassword) return;
-    const data = await api.changePassword(token, oldPassword, newPassword);
-    setAuth(data);
-    setGlobalMessage('Password changed successfully.');
+    try {
+      setErrorMessage('');
+      const data = await api.changePassword(token, oldPassword, newPassword);
+      setAuth(data);
+      setGlobalMessage('Password changed successfully.');
+      setOldPassword('');
+      setNewPassword('');
+    } catch (e) {
+      setErrorMessage((e as Error).message);
+    }
   }
 
   async function saveAcademicProfile() {
@@ -199,10 +241,12 @@ export default function App() {
     if (!token || !docFile || !selectedDocTypeId) return;
     const formData = new FormData();
     formData.append('documentTypeId', selectedDocTypeId);
+    if (docRequirement) formData.append('requirement', docRequirement);
     formData.append('visibility', docVisibility);
     formData.append('file', docFile);
     await api.uploadDocument(token, formData);
     setDocFile(null);
+    setDocRequirement('');
     await loadStudentData(token);
     setGlobalMessage('Document uploaded.');
   }
@@ -237,6 +281,7 @@ export default function App() {
     if (!token || !certFile || !certTitle || !certProvider) return;
     const formData = new FormData();
     if (selectedCertTypeId) formData.append('certificationTypeId', selectedCertTypeId);
+    if (certRequirement) formData.append('requirement', certRequirement);
     formData.append('title', certTitle);
     formData.append('provider', certProvider);
     formData.append('category', certCategory);
@@ -244,6 +289,7 @@ export default function App() {
     formData.append('file', certFile);
     await api.uploadCertification(token, formData);
     setCertFile(null);
+    setCertRequirement('');
     setCertTitle('');
     setCertProvider('');
     setCertCategory('');
@@ -298,8 +344,9 @@ export default function App() {
   async function runStudentFilters() {
     if (!token) return;
     const params = new URLSearchParams();
-    if (filterBatch) params.set('batch', filterBatch);
-    if (filterBranch) params.set('branch', filterBranch);
+    if (filterSearch) params.append('search', filterSearch);
+    if (filterBatch) params.append('batch', filterBatch);
+    if (filterBranch) params.append('branch', filterBranch);
     if (filterMinTenth) params.set('minTenth', filterMinTenth);
     if (filterMinInter) params.set('minInter', filterMinInter);
     if (filterMinBtechCgpa) params.set('minBtechCgpa', filterMinBtechCgpa);
@@ -367,6 +414,44 @@ export default function App() {
     }
   }
 
+  async function deleteStudent(id: string) {
+    if (!token || !window.confirm('Are you sure you want to delete this student and all their records?')) return;
+    await api.deleteStudent(token, id);
+    setStudents((p) => p.filter((s) => s.id !== id));
+    if (selectedStudent?.id === id) setSelectedStudent(null);
+    setGlobalMessage('Student deleted successfully.');
+  }
+
+  async function updateStudent() {
+    if (!token || !editingStudent) return;
+    await api.updateStudent(token, editingStudent.id, {
+      fullName: editingStudent.fullName,
+      email: editingStudent.email,
+      phone: editingStudent.phone,
+      batch: Number(editingStudent.batch),
+      branch: editingStudent.branch,
+      section: editingStudent.section,
+    });
+    setEditingStudent(null);
+    await runStudentFilters();
+    setGlobalMessage('Student updated successfully.');
+  }
+
+  async function createAnnouncement() {
+    if (!token || !newAnnouncement.title) return;
+    await api.createAnnouncement(token, newAnnouncement);
+    setNewAnnouncement({ title: '', description: '', type: 'OTHER', link: '' });
+    setGlobalMessage('Announcement posted.');
+    if (user?.role === 'STUDENT') await loadStudentData(token);
+  }
+
+  async function deleteAnnouncement(id: string) {
+    if (!token) return;
+    await api.deleteAnnouncement(token, id);
+    setAnnouncements((p) => p.filter((a) => a.id !== id));
+    setGlobalMessage('Announcement deleted.');
+  }
+
   function exportFilteredStudents() {
     downloadCsv(
       'filtered_students.csv',
@@ -402,10 +487,17 @@ export default function App() {
         <button onClick={logout}>Logout</button>
       </header>
       {globalMessage && <p className="message pulse">{globalMessage}</p>}
+      {errorMessage && <p className="message danger pulse" style={{ background: '#fef2f2', color: '#dc2626', borderColor: '#fecaca' }}>{errorMessage}</p>}
 
       {mustChangePassword && (
-        <section className="card glow">
+        <section className="card glow auth-card">
           <h3>First Login Password Change</h3>
+          <p className="muted" style={{ fontSize: '0.85rem', marginBottom: '10px' }}>
+            Password must be at least 8 characters long and contain:
+            <br />• One uppercase letter
+            <br />• One lowercase letter
+            <br />• One number or special character
+          </p>
           <div className="stack">
             <input type="password" placeholder="Current password" value={oldPassword} onChange={(e) => setOldPassword(e.target.value)} />
             <input type="password" placeholder="New password" value={newPassword} onChange={(e) => setNewPassword(e.target.value)} />
@@ -420,6 +512,7 @@ export default function App() {
             <button className={studentView === 'dashboard' ? 'active' : ''} onClick={() => setStudentView('dashboard')}>Dashboard</button>
             <button className={studentView === 'documents' ? 'active' : ''} onClick={() => setStudentView('documents')}>Mandatory Documents</button>
             <button className={studentView === 'certifications' ? 'active' : ''} onClick={() => setStudentView('certifications')}>Certifications</button>
+            <button className={studentView === 'announcements' ? 'active' : ''} onClick={() => setStudentView('announcements')}>Updates & News</button>
             <button className={studentView === 'academic' ? 'active' : ''} onClick={() => setStudentView('academic')}>Academic Scores</button>
             <button className={studentView === 'settings' ? 'active' : ''} onClick={() => setStudentView('settings')}>Settings</button>
           </nav>
@@ -427,23 +520,33 @@ export default function App() {
             {studentView === 'dashboard' && (
               <section className="dashboard-grid">
                 <div className="card dashboard-card" onClick={() => setStudentView('documents')}>
+                  <div style={{ fontSize: '2rem' }}>📁</div>
                   <h3>Mandatory Documents</h3>
                   <p>Uploaded {mandatorySummary.mandatory.length - mandatorySummary.missing.length}/{mandatorySummary.mandatory.length}</p>
+                  <div className="progress-bar" style={{ height: '6px', background: '#e2e8f0', borderRadius: '3px', overflow: 'hidden', width: '100%', margin: '10px 0' }}>
+                    <div style={{ height: '100%', background: '#2563eb', width: `${((mandatorySummary.mandatory.length - mandatorySummary.missing.length) / mandatorySummary.mandatory.length) * 100}%` }}></div>
+                  </div>
                   <button>View Section</button>
                 </div>
                 <div className="card dashboard-card" onClick={() => setStudentView('certifications')}>
+                  <div style={{ fontSize: '2rem' }}>🏆</div>
                   <h3>Certifications</h3>
                   <p>{certifications.length} certificates uploaded</p>
+                  <p className="muted" style={{ fontSize: '0.8rem' }}>Internships, Courses, etc.</p>
+                  <button>View Section</button>
+                </div>
+                <div className="card dashboard-card" onClick={() => setStudentView('announcements')}>
+                  <div style={{ fontSize: '2rem' }}>🔔</div>
+                  <h3>Updates & News</h3>
+                  <p>{announcements.length} new updates available</p>
+                  <p className="muted" style={{ fontSize: '0.8rem' }}>Check latest internships & events</p>
                   <button>View Section</button>
                 </div>
                 <div className="card dashboard-card" onClick={() => setStudentView('academic')}>
+                  <div style={{ fontSize: '2rem' }}>🎓</div>
                   <h3>Academic Scores</h3>
                   <p>Current CGPA: {profile?.currentCgpa || 'N/A'}</p>
-                  <button>View Section</button>
-                </div>
-                <div className="card dashboard-card" onClick={() => setStudentView('settings')}>
-                  <h3>Settings</h3>
-                  <p>Edit profile & login details</p>
+                  <p className="muted" style={{ fontSize: '0.8rem' }}>Update your CGPA and percentages</p>
                   <button>View Section</button>
                 </div>
               </section>
@@ -453,36 +556,57 @@ export default function App() {
               <section className="card fade-in" id="mandatory-docs">
                 <h3>Mandatory Documents</h3>
                 {loading ? <p>Loading...</p> : null}
-                <div className="stack">
-                  <select value={selectedDocTypeId} onChange={(e) => setSelectedDocTypeId(e.target.value)}>
-                    {docTypes.map((d) => <option key={d.id} value={d.id}>{d.name}</option>)}
-                  </select>
-                  <select value={docVisibility} onChange={(e) => setDocVisibility(e.target.value as Visibility)}>
-                    <option value="SHARED">Shared</option>
-                    <option value="PRIVATE">Private</option>
-                  </select>
-                  <input type="file" onChange={(e) => setDocFile(e.target.files?.[0] || null)} />
+                <div className="stack" style={{ marginBottom: '20px', padding: '15px', border: '1px solid #e2e8f0', borderRadius: '10px' }}>
+                  <h4>Upload Document</h4>
+                  <div className="stack cols-2">
+                    <Field label="Document Type">
+                      <select value={selectedDocTypeId} onChange={(e) => setSelectedDocTypeId(e.target.value)}>
+                        {docTypes.map((d) => <option key={d.id} value={d.id}>{d.name}</option>)}
+                      </select>
+                    </Field>
+                    <Field label="Visibility">
+                      <select value={docVisibility} onChange={(e) => setDocVisibility(e.target.value as Visibility)}>
+                        <option value="SHARED">Shared (Admin can see)</option>
+                        <option value="PRIVATE">Private (Only you)</option>
+                      </select>
+                    </Field>
+                    <Field label="Custom Requirement (Optional)">
+                      <input placeholder="e.g. TCS Recruitment 2024" value={docRequirement} onChange={(e) => setDocRequirement(e.target.value)} />
+                    </Field>
+                    <Field label="File">
+                      <input type="file" onChange={(e) => setDocFile(e.target.files?.[0] || null)} />
+                    </Field>
+                  </div>
                   <button onClick={uploadDocument}>Upload Document</button>
                 </div>
-                <ul className="list">
-                  {documents.map((d) => (
-                    <li key={d.id} className="list-item">
-                      <div>
-                        <b>{d.documentType.name}</b> - {d.fileName}
-                        <div className="muted">Status: {d.status} | Remarks: {d.remarks || 'N/A'}</div>
-                      </div>
-                      <div className="row-actions">
-                        <a href={getFileUrl(d.filePath)} target="_blank" rel="noreferrer"><button>View</button></a>
-                        <a href={getFileUrl(d.filePath)} download><button>Download</button></a>
-                        <div className="replace-action">
-                          <input type="file" onChange={(e) => setReplaceDocFile((p) => ({ ...p, [d.id]: e.target.files?.[0] || null }))} />
-                          <button onClick={() => replaceDocument(d)}>Edit/Reupload</button>
-                        </div>
-                        <button className="danger" onClick={() => deleteDocument(d.id)}>Delete</button>
-                      </div>
-                    </li>
-                  ))}
-                </ul>
+
+                <h4>Your Uploads</h4>
+                {Object.entries(groupedDocuments).map(([req, docs]) => (
+                  <div key={req} style={{ marginBottom: '20px' }}>
+                    <h5 style={{ borderBottom: '1px solid #cbd5e1', paddingBottom: '5px' }}>{req}</h5>
+                    <ul className="list">
+                      {docs.map((d) => (
+                        <li key={d.id} className="list-item">
+                          <div>
+                            <b>{d.documentType.name}</b> - {d.fileName}
+                            <div className="muted">
+                              Status: <span className={`badge badge-${d.status.toLowerCase()}`}>{d.status}</span> | Remarks: {d.remarks || 'N/A'}
+                            </div>
+                          </div>
+                          <div className="row-actions">
+                            <a href={getFileUrl(d.filePath)} target="_blank" rel="noreferrer"><button>View</button></a>
+                            <a href={getFileUrl(d.filePath)} download><button>Download</button></a>
+                            <div className="replace-action">
+                              <input type="file" onChange={(e) => setReplaceDocFile((p) => ({ ...p, [d.id]: e.target.files?.[0] || null }))} />
+                              <button onClick={() => replaceDocument(d)}>Edit/Reupload</button>
+                            </div>
+                            <button className="danger" onClick={() => deleteDocument(d.id)}>Delete</button>
+                          </div>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                ))}
               </section>
             )}
 
@@ -490,46 +614,112 @@ export default function App() {
               <>
                 <section className="card fade-in" id="internship-certs">
                   <h3>Upload New Certification</h3>
-                  <div className="stack">
-                    <select value={selectedCertTypeId} onChange={(e) => setSelectedCertTypeId(e.target.value)}>
-                      <option value="">Select requirement field</option>
-                      {certTypes.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
-                    </select>
-                    <input placeholder="Title" value={certTitle} onChange={(e) => setCertTitle(e.target.value)} />
-                    <input placeholder="Provider" value={certProvider} onChange={(e) => setCertProvider(e.target.value)} />
-                    <input placeholder="Category (Internship/Course/etc)" value={certCategory} onChange={(e) => setCertCategory(e.target.value)} />
-                    <select value={certVisibility} onChange={(e) => setCertVisibility(e.target.value as Visibility)}>
-                      <option value="SHARED">Shared</option>
-                      <option value="PRIVATE">Private</option>
-                    </select>
-                    <input type="file" onChange={(e) => setCertFile(e.target.files?.[0] || null)} />
-                    <button onClick={uploadCertification}>Upload Certification</button>
+                  <div className="stack cols-2">
+                    <Field label="Requirement Field">
+                      <select value={selectedCertTypeId} onChange={(e) => setSelectedCertTypeId(e.target.value)}>
+                        <option value="">Select field</option>
+                        {certTypes.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
+                      </select>
+                    </Field>
+                    <Field label="Custom Requirement (Optional)">
+                      <input placeholder="e.g. Google Internship" value={certRequirement} onChange={(e) => setCertRequirement(e.target.value)} />
+                    </Field>
+                    <Field label="Title">
+                      <input placeholder="Title" value={certTitle} onChange={(e) => setCertTitle(e.target.value)} />
+                    </Field>
+                    <Field label="Provider">
+                      <input placeholder="Provider" value={certProvider} onChange={(e) => setCertProvider(e.target.value)} />
+                    </Field>
+                    <Field label="Category">
+                      <input placeholder="Internship/Course/etc" value={certCategory} onChange={(e) => setCertCategory(e.target.value)} />
+                    </Field>
+                    <Field label="Visibility">
+                      <select value={certVisibility} onChange={(e) => setCertVisibility(e.target.value as Visibility)}>
+                        <option value="SHARED">Shared</option>
+                        <option value="PRIVATE">Private</option>
+                      </select>
+                    </Field>
+                    <Field label="File">
+                      <input type="file" onChange={(e) => setCertFile(e.target.files?.[0] || null)} />
+                    </Field>
                   </div>
+                  <button onClick={uploadCertification} style={{ marginTop: '10px' }}>Upload Certification</button>
                 </section>
 
                 <section className="card fade-in" id="course-certs">
                   <h3>Uploaded Certifications</h3>
-                  <ul className="list">
-                    {certifications.map((c) => (
-                      <li key={c.id} className="list-item">
-                        <div>
-                          <b>{c.title}</b> - {c.provider}
-                          <div className="muted">Field: {c.certificationType?.name || 'General'} | Status: {c.status} | Remarks: {c.remarks || 'N/A'}</div>
-                        </div>
-                        <div className="row-actions">
-                            <a href={getFileUrl(c.filePath)} target="_blank" rel="noreferrer"><button>View</button></a>
-                            <a href={getFileUrl(c.filePath)} download><button>Download</button></a>
-                            <div className="replace-action">
-                            <input type="file" onChange={(e) => setReplaceCertFile((p) => ({ ...p, [c.id]: e.target.files?.[0] || null }))} />
-                            <button onClick={() => replaceCertification(c)}>Edit/Reupload</button>
-                          </div>
-                          <button className="danger" onClick={() => deleteCertification(c.id)}>Delete</button>
-                        </div>
-                      </li>
-                    ))}
-                  </ul>
+                  {Object.entries(groupedCertifications).map(([req, certs]) => (
+                    <div key={req} style={{ marginBottom: '20px' }}>
+                      <h5 style={{ borderBottom: '1px solid #cbd5e1', paddingBottom: '5px' }}>{req}</h5>
+                      <ul className="list">
+                        {certs.map((c) => (
+                          <li key={c.id} className="list-item">
+                            <div>
+                              <b>{c.title}</b> - {c.provider}
+                              <div className="muted">
+                                Field: {c.certificationType?.name || 'General'} | 
+                                Status: <span className={`badge badge-${c.status.toLowerCase()}`}>{c.status}</span> | 
+                                Remarks: {c.remarks || 'N/A'}
+                              </div>
+                            </div>
+                            <div className="row-actions">
+                                <a href={getFileUrl(c.filePath)} target="_blank" rel="noreferrer"><button>View</button></a>
+                                <a href={getFileUrl(c.filePath)} download><button>Download</button></a>
+                                <div className="replace-action">
+                                <input type="file" onChange={(e) => setReplaceCertFile((p) => ({ ...p, [c.id]: e.target.files?.[0] || null }))} />
+                                <button onClick={() => replaceCertification(c)}>Edit/Reupload</button>
+                              </div>
+                              <button className="danger" onClick={() => deleteCertification(c.id)}>Delete</button>
+                            </div>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  ))}
                 </section>
               </>
+            )}
+
+            {studentView === 'announcements' && (
+              <section className="card fade-in">
+                <h3>Internships, Workshops & Updates</h3>
+                {selectedAnnouncement ? (
+                  <div className="card glow" style={{ borderLeft: '4px solid #2563eb', marginBottom: '20px' }}>
+                    <button className="muted" style={{ background: 'none', border: 'none', padding: 0, marginBottom: '10px', cursor: 'pointer' }} onClick={() => setSelectedAnnouncement(null)}>← Back to all updates</button>
+                    <div style={{ display: 'flex', gap: '8px', marginBottom: '12px' }}>
+                      <span className="badge" style={{ background: '#dbeafe', color: '#1e40af', padding: '4px 12px', borderRadius: '6px', fontSize: '0.85rem', fontWeight: 'bold' }}>{selectedAnnouncement.type}</span>
+                      <span className="muted" style={{ fontSize: '0.85rem' }}>Posted on {new Date(selectedAnnouncement.createdAt).toLocaleDateString()}</span>
+                    </div>
+                    <h2>{selectedAnnouncement.title}</h2>
+                    <p style={{ fontSize: '1.1rem', lineHeight: '1.6', whiteSpace: 'pre-wrap' }}>{selectedAnnouncement.description}</p>
+                    {selectedAnnouncement.link && (
+                      <div style={{ marginTop: '20px' }}>
+                        <a href={selectedAnnouncement.link} target="_blank" rel="noreferrer">
+                          <button style={{ padding: '12px 24px', fontSize: '1rem' }}>Apply / View Details</button>
+                        </a>
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                  <div className="stack">
+                    {announcements.length === 0 ? <p className="muted">No updates available at the moment.</p> : null}
+                    {announcements.map((a) => (
+                      <div key={a.id} className="card announcement-card" onClick={() => setSelectedAnnouncement(a)} style={{ borderLeft: '4px solid #2563eb', cursor: 'pointer' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                          <div>
+                            <span className="badge" style={{ background: '#dbeafe', color: '#1e40af', padding: '2px 8px', borderRadius: '4px', fontSize: '0.75rem', fontWeight: 'bold' }}>{a.type}</span>
+                            <h4 style={{ margin: '8px 0 4px 0' }}>{a.title}</h4>
+                            <p className="muted" style={{ margin: 0, fontSize: '0.85rem', overflow: 'hidden', textOverflow: 'ellipsis', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' }}>
+                              {a.description}
+                            </p>
+                          </div>
+                          <button style={{ background: '#f1f5f9', color: '#2563eb', border: 'none' }}>View</button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </section>
             )}
 
             {studentView === 'academic' && (
@@ -545,7 +735,7 @@ export default function App() {
                   <Field label="B.Tech %"><input value={studentAcademic.btechPercentage} onChange={(e) => setStudentAcademic((p) => ({ ...p, btechPercentage: e.target.value }))} /></Field>
                   <Field label="Backlogs"><input value={studentAcademic.backlogsCount} onChange={(e) => setStudentAcademic((p) => ({ ...p, backlogsCount: e.target.value }))} /></Field>
                 </div>
-                <button onClick={saveAcademicProfile}>Save Academic Details</button>
+                <button onClick={saveAcademicProfile} style={{ marginTop: '10px' }}>Save Academic Details</button>
               </section>
             )}
 
@@ -554,6 +744,9 @@ export default function App() {
                 <h3>Account Settings</h3>
                 <div className="stack">
                   <h4>Change Password</h4>
+                  <p className="muted" style={{ fontSize: '0.85rem' }}>
+                    Password must be at least 8 characters long and contain uppercase, lowercase, and a number/special char.
+                  </p>
                   <input type="password" placeholder="Current password" value={oldPassword} onChange={(e) => setOldPassword(e.target.value)} />
                   <input type="password" placeholder="New password" value={newPassword} onChange={(e) => setNewPassword(e.target.value)} />
                   <button onClick={changePasswordFirstTime}>Update Password</button>
@@ -581,6 +774,7 @@ export default function App() {
             <button className={adminView === 'dashboard' ? 'active' : ''} onClick={() => setAdminView('dashboard')}>Dashboard</button>
             <button className={adminView === 'students' ? 'active' : ''} onClick={() => setAdminView('students')}>Manage Students</button>
             <button className={adminView === 'requirements' ? 'active' : ''} onClick={() => setAdminView('requirements')}>Requirement Fields</button>
+            <button className={adminView === 'announcements' ? 'active' : ''} onClick={() => setAdminView('announcements')}>Post Updates</button>
             <button className={adminView === 'settings' ? 'active' : ''} onClick={() => setAdminView('settings')}>Settings</button>
           </nav>
           <main className="grid">
@@ -588,7 +782,7 @@ export default function App() {
               <section className="dashboard-grid">
                 <div className="card dashboard-card" onClick={() => setAdminView('students')}>
                   <h3>Manage Students</h3>
-                  <p>View & filter student profiles</p>
+                  <p>View, filter, edit & delete students</p>
                   <button>View Section</button>
                 </div>
                 <div className="card dashboard-card" onClick={() => setAdminView('requirements')}>
@@ -596,9 +790,9 @@ export default function App() {
                   <p>Create document/certification fields</p>
                   <button>View Section</button>
                 </div>
-                <div className="card dashboard-card" onClick={() => setAdminView('settings')}>
-                  <h3>Admin Settings</h3>
-                  <p>Manage admin account</p>
+                <div className="card dashboard-card" onClick={() => setAdminView('announcements')}>
+                  <h3>Post Updates</h3>
+                  <p>Post internships & workshops</p>
                   <button>View Section</button>
                 </div>
               </section>
@@ -610,9 +804,37 @@ export default function App() {
                 <div className="stack">
                   <input placeholder="New document field" value={newDocType} onChange={(e) => setNewDocType(e.target.value)} />
                   <button onClick={createDocumentRequirement}>Create Document Field</button>
+                  <hr />
                   <input placeholder="New certification field" value={newCertType} onChange={(e) => setNewCertType(e.target.value)} />
                   <button onClick={createCertificationRequirement}>Create Certification Field</button>
                 </div>
+              </section>
+            )}
+
+            {adminView === 'announcements' && (
+              <section className="card fade-in">
+                <h3>Post Internships, Workshops & Updates</h3>
+                <div className="stack" style={{ marginBottom: '20px' }}>
+                  <input placeholder="Title" value={newAnnouncement.title} onChange={(e) => setNewAnnouncement((p) => ({ ...p, title: e.target.value }))} />
+                  <textarea placeholder="Description" value={newAnnouncement.description} onChange={(e) => setNewAnnouncement((p) => ({ ...p, description: e.target.value }))} />
+                  <select value={newAnnouncement.type} onChange={(e) => setNewAnnouncement((p) => ({ ...p, type: e.target.value }))}>
+                    <option value="INTERNSHIP">Internship</option>
+                    <option value="WORKSHOP">Workshop</option>
+                    <option value="TRAINING">Training</option>
+                    <option value="OTHER">Other</option>
+                  </select>
+                  <input placeholder="Link (Optional)" value={newAnnouncement.link} onChange={(e) => setNewAnnouncement((p) => ({ ...p, link: e.target.value }))} />
+                  <button onClick={createAnnouncement}>Post Announcement</button>
+                </div>
+                <h4>Recent Posts</h4>
+                <ul className="list">
+                  {announcements.map((a) => (
+                    <li key={a.id} className="list-item">
+                      <span><b>{a.title}</b> ({a.type})</span>
+                      <button className="danger" onClick={() => deleteAnnouncement(a.id)}>Delete</button>
+                    </li>
+                  ))}
+                </ul>
               </section>
             )}
 
@@ -630,7 +852,7 @@ export default function App() {
                     <input placeholder="Phone" value={newStudent.phone} onChange={(e) => setNewStudent((p) => ({ ...p, phone: e.target.value }))} />
                     <input placeholder="Default Password" value={newStudent.defaultPassword} onChange={(e) => setNewStudent((p) => ({ ...p, defaultPassword: e.target.value }))} />
                   </div>
-                  <button onClick={createStudent}>Create Student</button>
+                  <button onClick={createStudent} style={{ marginTop: '10px' }}>Create Student</button>
                   <hr />
                   <h4>Bulk Student Creation</h4>
                   <p className="muted">Bulk format: roll,fullName,batch,branch,section,email,phone,password</p>
@@ -648,28 +870,76 @@ export default function App() {
                 </section>
 
                 <section className="card fade-in">
-                  <h3>Filter Students + Export</h3>
-                  <div className="stack cols-2">
-                    <input placeholder="Batch" value={filterBatch} onChange={(e) => setFilterBatch(e.target.value)} />
-                    <input placeholder="Branch" value={filterBranch} onChange={(e) => setFilterBranch(e.target.value)} />
-                    <input placeholder="Min 10th %" value={filterMinTenth} onChange={(e) => setFilterMinTenth(e.target.value)} />
-                    <input placeholder="Min Inter %" value={filterMinInter} onChange={(e) => setFilterMinInter(e.target.value)} />
-                    <input placeholder="Min B.Tech CGPA" value={filterMinBtechCgpa} onChange={(e) => setFilterMinBtechCgpa(e.target.value)} />
-                    <input placeholder="Max Backlogs" value={filterMaxBacklogs} onChange={(e) => setFilterMaxBacklogs(e.target.value)} />
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+                    <h3>Filter Students</h3>
+                    <button onClick={exportFilteredStudents} style={{ background: '#059669' }}>Export to CSV</button>
                   </div>
-                  <div className="row-actions">
-                    <button onClick={runStudentFilters}>Apply Filters</button>
-                    <button onClick={exportFilteredStudents}>Download Filtered Data (Excel CSV)</button>
+                  <div className="stack cols-3">
+                    <Field label="Search (Roll/Name)"><input placeholder="Search..." value={filterSearch} onChange={(e) => setFilterSearch(e.target.value)} /></Field>
+                    <Field label="Batch"><input placeholder="e.g. 2024" value={filterBatch} onChange={(e) => setFilterBatch(e.target.value)} /></Field>
+                    <Field label="Branch"><input placeholder="e.g. CSE" value={filterBranch} onChange={(e) => setFilterBranch(e.target.value)} /></Field>
+                    <Field label="Min 10th %"><input type="number" value={filterMinTenth} onChange={(e) => setFilterMinTenth(e.target.value)} /></Field>
+                    <Field label="Min Inter %"><input type="number" value={filterMinInter} onChange={(e) => setFilterMinInter(e.target.value)} /></Field>
+                    <Field label="Min B.Tech CGPA"><input type="number" step="0.01" value={filterMinBtechCgpa} onChange={(e) => setFilterMinBtechCgpa(e.target.value)} /></Field>
+                    <Field label="Max Backlogs"><input type="number" value={filterMaxBacklogs} onChange={(e) => setFilterMaxBacklogs(e.target.value)} /></Field>
                   </div>
-                  <ul className="list">
-                    {students.map((s) => (
-                      <li key={s.id} className="list-item">
-                        <span><b>{s.rollNumber}</b> - {s.fullName}</span>
-                        <button onClick={() => viewStudent(s.id)}>View</button>
-                      </li>
-                    ))}
-                  </ul>
+                  <button onClick={runStudentFilters} style={{ marginTop: '16px', width: '100%' }}>Apply Filters</button>
                 </section>
+
+                <section className="card fade-in" style={{ marginTop: '20px' }}>
+                  <h3>Student List ({students.length})</h3>
+                  <div className="stack">
+                    {students.length === 0 ? <p className="muted">No students found with current filters.</p> : null}
+                    <div className="table-container" style={{ overflowX: 'auto' }}>
+                      <table style={{ width: '100%', borderCollapse: 'collapse', marginTop: '10px' }}>
+                        <thead>
+                          <tr style={{ background: '#f8fafc', borderBottom: '2px solid #e2e8f0' }}>
+                            <th style={{ padding: '12px', textAlign: 'left' }}>Roll No</th>
+                            <th style={{ padding: '12px', textAlign: 'left' }}>Full Name</th>
+                            <th style={{ padding: '12px', textAlign: 'left' }}>Branch</th>
+                            <th style={{ padding: '12px', textAlign: 'left' }}>CGPA</th>
+                            <th style={{ padding: '12px', textAlign: 'right' }}>Actions</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {students.map((s) => (
+                            <tr key={s.id} style={{ borderBottom: '1px solid #e2e8f0' }}>
+                              <td style={{ padding: '12px' }}>{s.rollNumber}</td>
+                              <td style={{ padding: '12px' }}>{s.fullName}</td>
+                              <td style={{ padding: '12px' }}>{s.branch}</td>
+                              <td style={{ padding: '12px' }}>{s.btechCgpa || s.currentCgpa || 'N/A'}</td>
+                              <td style={{ padding: '12px', textAlign: 'right' }}>
+                                <div className="row-actions" style={{ justifyContent: 'flex-end' }}>
+                                  <button onClick={() => viewStudent(s.id)}>Review</button>
+                                  <button onClick={() => setEditingStudent(s)} style={{ background: '#f59e0b' }}>Edit</button>
+                                  <button onClick={() => deleteStudent(s.id)} className="danger">Delete</button>
+                                </div>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                </section>
+
+                {editingStudent && (
+                  <section className="card glow fade-in">
+                    <h3>Edit Student: {editingStudent.rollNumber}</h3>
+                    <div className="stack cols-2">
+                      <Field label="Full Name"><input value={editingStudent.fullName} onChange={(e) => setEditingStudent({ ...editingStudent, fullName: e.target.value })} /></Field>
+                      <Field label="Email"><input value={editingStudent.email || ''} onChange={(e) => setEditingStudent({ ...editingStudent, email: e.target.value })} /></Field>
+                      <Field label="Phone"><input value={editingStudent.phone || ''} onChange={(e) => setEditingStudent({ ...editingStudent, phone: e.target.value })} /></Field>
+                      <Field label="Batch"><input value={editingStudent.batch} onChange={(e) => setEditingStudent({ ...editingStudent, batch: e.target.value })} /></Field>
+                      <Field label="Branch"><input value={editingStudent.branch} onChange={(e) => setEditingStudent({ ...editingStudent, branch: e.target.value })} /></Field>
+                      <Field label="Section"><input value={editingStudent.section || ''} onChange={(e) => setEditingStudent({ ...editingStudent, section: e.target.value })} /></Field>
+                    </div>
+                    <div className="row-actions" style={{ marginTop: '15px' }}>
+                      <button onClick={updateStudent}>Save Changes</button>
+                      <button onClick={() => setEditingStudent(null)}>Cancel</button>
+                    </div>
+                  </section>
+                )}
 
                 <section className="card fade-in">
                   <h3>Admin Review</h3>
@@ -681,7 +951,10 @@ export default function App() {
                       <ul className="list">
                         {selectedStudent.documents.map((d: StudentDocument) => (
                           <li key={d.id} className="list-item">
-                            <div>{d.documentType.name} - {d.fileName} ({d.status})</div>
+                            <div>
+                              <b>{d.documentType.name}</b> - {d.fileName} ({d.status})
+                              {d.requirement && <div className="muted">Requirement: {d.requirement}</div>}
+                            </div>
                             <div className="row-actions">
                               <a href={getFileUrl(d.filePath)} target="_blank" rel="noreferrer"><button>View</button></a>
                               <a href={getFileUrl(d.filePath)} download><button>Download</button></a>
@@ -696,7 +969,10 @@ export default function App() {
                       <ul className="list">
                         {selectedStudent.certifications.map((c: Certification) => (
                           <li key={c.id} className="list-item">
-                            <div>{c.title} - {c.provider} ({c.status})</div>
+                            <div>
+                              <b>{c.title}</b> - {c.provider} ({c.status})
+                              {c.requirement && <div className="muted">Requirement: {c.requirement}</div>}
+                            </div>
                             <div className="row-actions">
                               <a href={getFileUrl(c.filePath)} target="_blank" rel="noreferrer"><button>View</button></a>
                               <a href={getFileUrl(c.filePath)} download><button>Download</button></a>

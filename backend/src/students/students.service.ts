@@ -89,35 +89,47 @@ export class StudentsService {
   async getStudents(filters: any) {
     const where: any = {};
 
-    if (filters.batch) where.batch = Number(filters.batch);
-    if (filters.branch) where.branch = filters.branch;
-    if (filters.section) where.section = filters.section;
-    if (filters.minTenth) {
+    // Basic filters
+    if (filters.batch && filters.batch !== '') where.batch = Number(filters.batch);
+    if (filters.branch && filters.branch !== '') where.branch = filters.branch;
+    if (filters.section && filters.section !== '') where.section = filters.section;
+    
+    // Search filter
+    if (filters.search && filters.search !== '') {
+      where.OR = [
+        { fullName: { contains: filters.search, mode: 'insensitive' } },
+        { rollNumber: { contains: filters.search, mode: 'insensitive' } },
+      ];
+    }
+
+    // Academic filters
+    if (filters.minTenth && filters.minTenth !== '') {
       where.tenthPercentage = { gte: Number(filters.minTenth) };
     }
-    if (filters.maxTenth) {
+    if (filters.maxTenth && filters.maxTenth !== '') {
       where.tenthPercentage = {
         ...(where.tenthPercentage || {}),
         lte: Number(filters.maxTenth),
       };
     }
-    if (filters.minInter) {
+    if (filters.minInter && filters.minInter !== '') {
       where.interPercentage = { gte: Number(filters.minInter) };
     }
-    if (filters.maxInter) {
+    if (filters.maxInter && filters.maxInter !== '') {
       where.interPercentage = {
         ...(where.interPercentage || {}),
         lte: Number(filters.maxInter),
       };
     }
-    if (filters.minBtechCgpa) {
+    if (filters.minBtechCgpa && filters.minBtechCgpa !== '') {
       where.btechCgpa = { gte: Number(filters.minBtechCgpa) };
     }
-    if (filters.maxBacklogs) {
+    if (filters.maxBacklogs && filters.maxBacklogs !== '') {
       where.backlogsCount = { lte: Number(filters.maxBacklogs) };
     }
 
-    if (filters.certification) {
+    // Certification filter
+    if (filters.certification && filters.certification !== '') {
       where.certifications = {
         some: {
           visibility: Visibility.SHARED,
@@ -139,6 +151,55 @@ export class StudentsService {
       },
       orderBy: { rollNumber: 'asc' },
     });
+  }
+
+  async updateStudent(id: string, dto: any) {
+    const student = await this.prisma.student.findUnique({
+      where: { id },
+      include: { user: true },
+    });
+
+    if (!student) throw new NotFoundException('Student not found');
+
+    const { newPassword, rollNumber, ...studentData } = dto;
+
+    // If password is being updated
+    if (newPassword) {
+      const passwordHash = await bcrypt.hash(newPassword, 10);
+      await this.prisma.user.update({
+        where: { id: student.userId },
+        data: { passwordHash },
+      });
+    }
+
+    // If roll number is being updated, also update username in user table
+    if (rollNumber && rollNumber !== student.rollNumber) {
+      await this.prisma.user.update({
+        where: { id: student.userId },
+        data: { username: rollNumber },
+      });
+      studentData.rollNumber = rollNumber;
+    }
+
+    return this.prisma.student.update({
+      where: { id },
+      data: studentData,
+    });
+  }
+
+  async deleteStudent(id: string) {
+    const student = await this.prisma.student.findUnique({
+      where: { id },
+    });
+
+    if (!student) throw new NotFoundException('Student not found');
+
+    // Deleting the user will also delete the student due to onDelete: Cascade
+    await this.prisma.user.delete({
+      where: { id: student.userId },
+    });
+
+    return { message: 'Student deleted successfully' };
   }
 
   async getStudentById(studentId: string) {

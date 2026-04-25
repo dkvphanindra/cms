@@ -30,6 +30,7 @@ export class DocumentsService {
       data: {
         studentId: student.id,
         documentTypeId: dto.documentTypeId,
+        requirement: dto.requirement,
         fileName: file.originalname,
         filePath: file.path.replace(/\\/g, '/'),
         mimeType: file.mimetype,

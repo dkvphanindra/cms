@@ -84,6 +84,7 @@ model StudentDocument {
   id             String         @id @default(uuid())
   studentId      String
   documentTypeId String
+  requirement    String?        // Custom requirement/category field
   fileName       String
   filePath       String
   mimeType       String
@@ -99,12 +100,14 @@ model StudentDocument {
 
   @@index([studentId])
   @@index([documentTypeId])
+  @@index([requirement])
 }
 
 model Certification {
   id              String     @id @default(uuid())
   studentId       String
   certificationTypeId String?
+  requirement     String?    // Custom requirement/category field
   title           String
   provider        String
   category        String?
@@ -129,4 +132,25 @@ model Certification {
   @@index([title])
   @@index([provider])
   @@index([category])
+  @@index([requirement])
+}
+
+enum UpdateType {
+  INTERNSHIP
+  WORKSHOP
+  TRAINING
+  OTHER
+}
+
+model Announcement {
+  id          String     @id @default(uuid())
+  title       String
+  description String
+  type        UpdateType @default(OTHER)
+  link        String?
+  expiresAt   DateTime?
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+
+  @@index([type])
 }

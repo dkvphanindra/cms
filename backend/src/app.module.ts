@@ -8,6 +8,8 @@ import { DocumentTypesModule } from './document-types/document-types.module';
 import { DocumentsModule } from './documents/documents.module';
 import { CertificationsModule } from './certifications/certifications.module';
 import { CertificationTypesModule } from './certification-types/certification-types.module';
+import { MailModule } from './mail/mail.module';
+import { AnnouncementsModule } from './announcements/announcements.module';
 
 @Module({
   imports: [
@@ -19,6 +21,8 @@ import { CertificationTypesModule } from './certification-types/certification-ty
     CertificationTypesModule,
     DocumentsModule,
     CertificationsModule,
+    MailModule,
+    AnnouncementsModule,
   ],
   controllers: [AppController],
 })

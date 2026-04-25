@@ -74,4 +74,24 @@ export class StudentsController {
     }
     return this.studentsService.getStudentById(id);
   }
+
+  @Patch(':id')
+  updateStudent(
+    @CurrentUser() user: any,
+    @Param('id') id: string,
+    @Body() dto: any,
+  ) {
+    if (user.role !== 'ADMIN') {
+      throw new ForbiddenException('Only admin can update students');
+    }
+    return this.studentsService.updateStudent(id, dto);
+  }
+
+  @Post(':id/delete') // Using POST for delete to be safer with some proxy configs, or use DELETE
+  deleteStudent(@CurrentUser() user: any, @Param('id') id: string) {
+    if (user.role !== 'ADMIN') {
+      throw new ForbiddenException('Only admin can delete students');
+    }
+    return this.studentsService.deleteStudent(id);
+  }
 }

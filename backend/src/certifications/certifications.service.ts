@@ -30,6 +30,7 @@ export class CertificationsService {
       data: {
         studentId: student.id,
         certificationTypeId: dto.certificationTypeId,
+        requirement: dto.requirement,
         title: dto.title,
         provider: dto.provider,
         category: dto.category,
