@@ -53,6 +53,7 @@ export type StudentDocument = {
   visibility: Visibility;
   status: ReviewStatus;
   remarks?: string | null;
+  requirement?: string | null;
   uploadedAt: string;
   documentType: DocumentType;
 };
@@ -68,6 +69,7 @@ export type Certification = {
   visibility: Visibility;
   status: ReviewStatus;
   remarks?: string | null;
+  requirement?: string | null;
   createdAt: string;
 };
 
