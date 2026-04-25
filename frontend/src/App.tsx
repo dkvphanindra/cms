@@ -147,6 +147,7 @@ export default function App() {
   }, [docTypes, documents]);
 
   async function loadStudentData(activeToken: string) {
+    if (!user || user.role !== 'STUDENT') return;
     setLoading(true);
     try {
       const [myProfile, allDocTypes, allCertTypes, myDocs, myCerts, allAnnouncements] = await Promise.all([
@@ -159,34 +160,68 @@ export default function App() {
       ]);
       const docTypeData = allDocTypes as DocumentType[];
       const certTypeData = allCertTypes as DocumentType[];
-      setProfile(myProfile as StudentProfile);
+      const profileData = myProfile as StudentProfile;
+      setProfile(profileData);
       setDocTypes(docTypeData);
       setCertTypes(certTypeData);
       setDocuments(myDocs as StudentDocument[]);
       setCertifications(myCerts as Certification[]);
       setAnnouncements(allAnnouncements as any[]);
       setStudentAcademic({
-        tenthMarks: String((myProfile as StudentProfile).tenthMarks ?? ''),
-        tenthPercentage: String((myProfile as StudentProfile).tenthPercentage ?? ''),
-        interMarks: String((myProfile as StudentProfile).interMarks ?? ''),
-        interPercentage: String((myProfile as StudentProfile).interPercentage ?? ''),
-        btechCgpa: String((myProfile as StudentProfile).btechCgpa ?? (myProfile as StudentProfile).currentCgpa ?? ''),
-        btechPercentage: String((myProfile as StudentProfile).btechPercentage ?? ''),
-        backlogsCount: String((myProfile as StudentProfile).backlogsCount ?? ''),
+        tenthMarks: String(profileData.tenthMarks ?? ''),
+        tenthPercentage: String(profileData.tenthPercentage ?? ''),
+        interMarks: String(profileData.interMarks ?? ''),
+        interPercentage: String(profileData.interPercentage ?? ''),
+        btechCgpa: String(profileData.btechCgpa ?? profileData.currentCgpa ?? ''),
+        btechPercentage: String(profileData.btechPercentage ?? ''),
+        backlogsCount: String(profileData.backlogsCount ?? ''),
       });
       if (!selectedDocTypeId && docTypeData.length) setSelectedDocTypeId(docTypeData[0].id);
       if (!selectedCertTypeId && certTypeData.length) setSelectedCertTypeId(certTypeData[0].id);
+    } catch (e) {
+      setErrorMessage((e as Error).message);
     } finally {
       setLoading(false);
     }
   }
 
-  useEffect(() => {
-    if (!token || !user) return;
-    if (user.role === 'STUDENT' && !mustChangePassword) {
-      loadStudentData(token).catch((e) => setGlobalMessage((e as Error).message));
+  async function loadAdminData(activeToken: string) {
+    if (!user || user.role !== 'ADMIN') return;
+    setLoading(true);
+    try {
+      const [allDocTypes, allCertTypes, allAnnouncements] = await Promise.all([
+        api.getDocumentTypes(activeToken),
+        api.getCertificationTypes(activeToken),
+        api.getAnnouncements(activeToken),
+      ]);
+      setDocTypes(allDocTypes as DocumentType[]);
+      setCertTypes(allCertTypes as DocumentType[]);
+      setAnnouncements(allAnnouncements as any[]);
+    } catch (e) {
+      setErrorMessage((e as Error).message);
+    } finally {
+      setLoading(false);
     }
-  }, [token, user, mustChangePassword, studentView]);
+  }
+
+  async function loadAnnouncementsOnly() {
+    if (!token) return;
+    try {
+      const data = await api.getAnnouncements(token);
+      setAnnouncements(data as any[]);
+    } catch (e) {
+      setErrorMessage((e as Error).message);
+    }
+  }
+
+  useEffect(() => {
+    if (!token || !user || mustChangePassword) return;
+    if (user.role === 'STUDENT') {
+      loadStudentData(token);
+    } else {
+      loadAdminData(token);
+    }
+  }, [token, user?.role, mustChangePassword, studentView, adminView]);
 
   function setAuth(data: LoginResponse) {
     localStorage.setItem('token', data.accessToken);
@@ -223,233 +258,412 @@ export default function App() {
 
   async function saveAcademicProfile() {
     if (!token) return;
-    await api.updateMyProfile(token, {
-      tenthMarks: studentAcademic.tenthMarks ? Number(studentAcademic.tenthMarks) : null,
-      tenthPercentage: studentAcademic.tenthPercentage ? Number(studentAcademic.tenthPercentage) : null,
-      interMarks: studentAcademic.interMarks ? Number(studentAcademic.interMarks) : null,
-      interPercentage: studentAcademic.interPercentage ? Number(studentAcademic.interPercentage) : null,
-      btechCgpa: studentAcademic.btechCgpa ? Number(studentAcademic.btechCgpa) : null,
-      btechPercentage: studentAcademic.btechPercentage ? Number(studentAcademic.btechPercentage) : null,
-      backlogsCount: studentAcademic.backlogsCount ? Number(studentAcademic.backlogsCount) : 0,
-      currentCgpa: studentAcademic.btechCgpa ? Number(studentAcademic.btechCgpa) : null,
-    });
-    await loadStudentData(token);
-    setGlobalMessage('Academic details saved.');
+    setLoading(true);
+    setErrorMessage('');
+    try {
+      await api.updateMyProfile(token, {
+        tenthMarks: studentAcademic.tenthMarks ? Number(studentAcademic.tenthMarks) : null,
+        tenthPercentage: studentAcademic.tenthPercentage ? Number(studentAcademic.tenthPercentage) : null,
+        interMarks: studentAcademic.interMarks ? Number(studentAcademic.interMarks) : null,
+        interPercentage: studentAcademic.interPercentage ? Number(studentAcademic.interPercentage) : null,
+        btechCgpa: studentAcademic.btechCgpa ? Number(studentAcademic.btechCgpa) : null,
+        btechPercentage: studentAcademic.btechPercentage ? Number(studentAcademic.btechPercentage) : null,
+        backlogsCount: studentAcademic.backlogsCount ? Number(studentAcademic.backlogsCount) : 0,
+        currentCgpa: studentAcademic.btechCgpa ? Number(studentAcademic.btechCgpa) : null,
+      });
+      await loadStudentData(token);
+      setGlobalMessage('Academic details saved.');
+    } catch (e) {
+      setErrorMessage((e as Error).message);
+    } finally {
+      setLoading(false);
+    }
   }
 
   async function uploadDocument() {
     if (!token || !docFile || !selectedDocTypeId) return;
-    const formData = new FormData();
-    formData.append('documentTypeId', selectedDocTypeId);
-    if (docRequirement) formData.append('requirement', docRequirement);
-    formData.append('visibility', docVisibility);
-    formData.append('file', docFile);
-    await api.uploadDocument(token, formData);
-    setDocFile(null);
-    setDocRequirement('');
-    await loadStudentData(token);
-    setGlobalMessage('Document uploaded.');
+    setLoading(true);
+    setErrorMessage('');
+    try {
+      const formData = new FormData();
+      formData.append('documentTypeId', selectedDocTypeId);
+      if (docRequirement) formData.append('requirement', docRequirement);
+      formData.append('visibility', docVisibility);
+      formData.append('file', docFile);
+      await api.uploadDocument(token, formData);
+      setDocFile(null);
+      setDocRequirement('');
+      await loadStudentData(token);
+      setGlobalMessage('Document uploaded.');
+    } catch (e) {
+      setErrorMessage((e as Error).message);
+    } finally {
+      setLoading(false);
+    }
   }
 
   async function replaceDocument(document: StudentDocument) {
     if (!token || !replaceDocFile[document.id]) return;
-    const formData = new FormData();
-    formData.append('documentTypeId', document.documentType.id);
-    formData.append('visibility', document.visibility);
-    formData.append('file', replaceDocFile[document.id] as File);
-    await api.replaceDocument(token, document.id, formData);
-    setReplaceDocFile((p) => ({ ...p, [document.id]: null }));
-    await loadStudentData(token);
-    setGlobalMessage('Document replaced and moved to review.');
+    setLoading(true);
+    setErrorMessage('');
+    try {
+      const formData = new FormData();
+      formData.append('documentTypeId', document.documentType.id);
+      formData.append('visibility', document.visibility);
+      formData.append('file', replaceDocFile[document.id] as File);
+      await api.replaceDocument(token, document.id, formData);
+      setReplaceDocFile((p) => ({ ...p, [document.id]: null }));
+      await loadStudentData(token);
+      setGlobalMessage('Document replaced and moved to review.');
+    } catch (e) {
+      setErrorMessage((e as Error).message);
+    } finally {
+      setLoading(false);
+    }
   }
 
   async function deleteDocument(id: string) {
-    if (!token) return;
-    await api.deleteDocument(token, id);
-    await loadStudentData(token);
-    setGlobalMessage('Document deleted.');
+    if (!token || !window.confirm('Delete this document?')) return;
+    setLoading(true);
+    setErrorMessage('');
+    try {
+      await api.deleteDocument(token, id);
+      await loadStudentData(token);
+      setGlobalMessage('Document deleted.');
+    } catch (e) {
+      setErrorMessage((e as Error).message);
+    } finally {
+      setLoading(false);
+    }
   }
 
   async function toggleDocVisibility(id: string, visibility: Visibility) {
     if (!token) return;
-    const next = visibility === 'SHARED' ? 'PRIVATE' : 'SHARED';
-    await api.updateDocumentVisibility(token, id, next);
-    await loadStudentData(token);
+    setLoading(true);
+    try {
+      const next = visibility === 'SHARED' ? 'PRIVATE' : 'SHARED';
+      await api.updateDocumentVisibility(token, id, next);
+      await loadStudentData(token);
+    } catch (e) {
+      setErrorMessage((e as Error).message);
+    } finally {
+      setLoading(false);
+    }
   }
 
   async function uploadCertification() {
     if (!token || !certFile || !certTitle || !certProvider) return;
-    const formData = new FormData();
-    if (selectedCertTypeId) formData.append('certificationTypeId', selectedCertTypeId);
-    if (certRequirement) formData.append('requirement', certRequirement);
-    formData.append('title', certTitle);
-    formData.append('provider', certProvider);
-    formData.append('category', certCategory);
-    formData.append('visibility', certVisibility);
-    formData.append('file', certFile);
-    await api.uploadCertification(token, formData);
-    setCertFile(null);
-    setCertRequirement('');
-    setCertTitle('');
-    setCertProvider('');
-    setCertCategory('');
-    await loadStudentData(token);
-    setGlobalMessage('Certification uploaded.');
+    setLoading(true);
+    setErrorMessage('');
+    try {
+      const formData = new FormData();
+      if (selectedCertTypeId) formData.append('certificationTypeId', selectedCertTypeId);
+      if (certRequirement) formData.append('requirement', certRequirement);
+      formData.append('title', certTitle);
+      formData.append('provider', certProvider);
+      formData.append('category', certCategory);
+      formData.append('visibility', certVisibility);
+      formData.append('file', certFile);
+      await api.uploadCertification(token, formData);
+      setCertFile(null);
+      setCertRequirement('');
+      setCertTitle('');
+      setCertProvider('');
+      setCertCategory('');
+      await loadStudentData(token);
+      setGlobalMessage('Certification uploaded.');
+    } catch (e) {
+      setErrorMessage((e as Error).message);
+    } finally {
+      setLoading(false);
+    }
   }
 
   async function replaceCertification(cert: Certification) {
     if (!token || !replaceCertFile[cert.id]) return;
-    const formData = new FormData();
-    if (cert.certificationTypeId) formData.append('certificationTypeId', cert.certificationTypeId);
-    formData.append('title', cert.title);
-    formData.append('provider', cert.provider);
-    formData.append('category', cert.category || '');
-    formData.append('visibility', cert.visibility);
-    formData.append('file', replaceCertFile[cert.id] as File);
-    await api.replaceCertification(token, cert.id, formData);
-    setReplaceCertFile((p) => ({ ...p, [cert.id]: null }));
-    await loadStudentData(token);
-    setGlobalMessage('Certification replaced and moved to review.');
+    setLoading(true);
+    setErrorMessage('');
+    try {
+      const formData = new FormData();
+      if (cert.certificationTypeId) formData.append('certificationTypeId', cert.certificationTypeId);
+      formData.append('title', cert.title);
+      formData.append('provider', cert.provider);
+      formData.append('category', cert.category || '');
+      formData.append('visibility', cert.visibility);
+      formData.append('file', replaceCertFile[cert.id] as File);
+      await api.replaceCertification(token, cert.id, formData);
+      setReplaceCertFile((p) => ({ ...p, [cert.id]: null }));
+      await loadStudentData(token);
+      setGlobalMessage('Certification replaced and moved to review.');
+    } catch (e) {
+      setErrorMessage((e as Error).message);
+    } finally {
+      setLoading(false);
+    }
   }
 
   async function deleteCertification(id: string) {
-    if (!token) return;
-    await api.deleteCertification(token, id);
-    await loadStudentData(token);
-    setGlobalMessage('Certification deleted.');
+    if (!token || !window.confirm('Delete this certification?')) return;
+    setLoading(true);
+    setErrorMessage('');
+    try {
+      await api.deleteCertification(token, id);
+      await loadStudentData(token);
+      setGlobalMessage('Certification deleted.');
+    } catch (e) {
+      setErrorMessage((e as Error).message);
+    } finally {
+      setLoading(false);
+    }
   }
 
   async function toggleCertVisibility(id: string, visibility: Visibility) {
     if (!token) return;
-    const next = visibility === 'SHARED' ? 'PRIVATE' : 'SHARED';
-    await api.updateCertificationVisibility(token, id, next);
-    await loadStudentData(token);
+    setLoading(true);
+    try {
+      const next = visibility === 'SHARED' ? 'PRIVATE' : 'SHARED';
+      await api.updateCertificationVisibility(token, id, next);
+      await loadStudentData(token);
+    } catch (e) {
+      setErrorMessage((e as Error).message);
+    } finally {
+      setLoading(false);
+    }
   }
 
   async function createDocumentRequirement() {
     if (!token || !newDocType.trim()) return;
-    await api.createDocumentType(token, { name: newDocType.trim(), isMandatory: true });
-    setNewDocType('');
-    if (user?.role === 'STUDENT') await loadStudentData(token);
-    setGlobalMessage('Document field created.');
+    setLoading(true);
+    setErrorMessage('');
+    try {
+      await api.createDocumentType(token, { name: newDocType.trim(), isMandatory: true });
+      setNewDocType('');
+      if (user?.role === 'STUDENT') await loadStudentData(token);
+      else await loadAdminData(token);
+      setGlobalMessage('Document field created.');
+    } catch (e) {
+      setErrorMessage((e as Error).message);
+    } finally {
+      setLoading(false);
+    }
   }
 
   async function createCertificationRequirement() {
     if (!token || !newCertType.trim()) return;
-    await api.createCertificationType(token, { name: newCertType.trim(), isMandatory: true });
-    setNewCertType('');
-    setGlobalMessage('Certification field created.');
+    setLoading(true);
+    setErrorMessage('');
+    try {
+      await api.createCertificationType(token, { name: newCertType.trim(), isMandatory: true });
+      setNewCertType('');
+      if (user?.role === 'STUDENT') await loadStudentData(token);
+      else await loadAdminData(token);
+      setGlobalMessage('Certification field created.');
+    } catch (e) {
+      setErrorMessage((e as Error).message);
+    } finally {
+      setLoading(false);
+    }
   }
 
   async function runStudentFilters() {
     if (!token) return;
-    const params = new URLSearchParams();
-    if (filterSearch) params.append('search', filterSearch);
-    if (filterBatch) params.append('batch', filterBatch);
-    if (filterBranch) params.append('branch', filterBranch);
-    if (filterMinTenth) params.set('minTenth', filterMinTenth);
-    if (filterMinInter) params.set('minInter', filterMinInter);
-    if (filterMinBtechCgpa) params.set('minBtechCgpa', filterMinBtechCgpa);
-    if (filterMaxBacklogs) params.set('maxBacklogs', filterMaxBacklogs);
-    const data = (await api.getStudents(token, `?${params.toString()}`)) as StudentProfile[];
-    setStudents(data);
-    setSelectedStudent(null);
+    setLoading(true);
+    setErrorMessage('');
+    try {
+      const params = new URLSearchParams();
+      if (filterSearch) params.append('search', filterSearch);
+      if (filterBatch) params.append('batch', filterBatch);
+      if (filterBranch) params.append('branch', filterBranch);
+      if (filterMinTenth) params.set('minTenth', filterMinTenth);
+      if (filterMinInter) params.set('minInter', filterMinInter);
+      if (filterMinBtechCgpa) params.set('minBtechCgpa', filterMinBtechCgpa);
+      if (filterMaxBacklogs) params.set('maxBacklogs', filterMaxBacklogs);
+      const data = (await api.getStudents(token, `?${params.toString()}`)) as StudentProfile[];
+      setStudents(data);
+      setSelectedStudent(null);
+    } catch (e) {
+      setErrorMessage((e as Error).message);
+    } finally {
+      setLoading(false);
+    }
   }
 
   async function viewStudent(id: string) {
     if (!token) return;
-    const data = await api.getStudentById(token, id);
-    setSelectedStudent(data);
+    setLoading(true);
+    try {
+      const data = await api.getStudentById(token, id);
+      setSelectedStudent(data);
+    } catch (e) {
+      setErrorMessage((e as Error).message);
+    } finally {
+      setLoading(false);
+    }
   }
 
   async function reviewDocument(id: string, status: 'APPROVED' | 'REJECTED') {
     if (!token) return;
-    await api.reviewDocument(token, id, { status, remarks: reviewRemarks[id] });
-    if (selectedStudent) await viewStudent(selectedStudent.id);
+    setLoading(true);
+    setErrorMessage('');
+    try {
+      await api.reviewDocument(token, id, { status, remarks: reviewRemarks[id] });
+      if (selectedStudent) await viewStudent(selectedStudent.id);
+      setGlobalMessage(`Document ${status.toLowerCase()} successfully.`);
+    } catch (e) {
+      setErrorMessage((e as Error).message);
+    } finally {
+      setLoading(false);
+    }
   }
 
   async function reviewCertification(id: string, status: 'APPROVED' | 'REJECTED') {
     if (!token) return;
-    await api.reviewCertification(token, id, { status, remarks: reviewRemarks[id] });
-    if (selectedStudent) await viewStudent(selectedStudent.id);
+    setLoading(true);
+    setErrorMessage('');
+    try {
+      await api.reviewCertification(token, id, { status, remarks: reviewRemarks[id] });
+      if (selectedStudent) await viewStudent(selectedStudent.id);
+      setGlobalMessage(`Certification ${status.toLowerCase()} successfully.`);
+    } catch (e) {
+      setErrorMessage((e as Error).message);
+    } finally {
+      setLoading(false);
+    }
   }
 
   async function createStudent() {
     if (!token) return;
-    await api.createStudent(token, {
-      ...newStudent,
-      batch: Number(newStudent.batch),
-    });
-    setGlobalMessage('Student created.');
+    setLoading(true);
+    setErrorMessage('');
+    try {
+      await api.createStudent(token, {
+        ...newStudent,
+        batch: Number(newStudent.batch),
+      });
+      setGlobalMessage('Student created.');
+      setNewStudent({
+        rollNumber: '',
+        fullName: '',
+        email: '',
+        phone: '',
+        batch: '',
+        branch: '',
+        section: '',
+        defaultPassword: 'Student@123',
+      });
+      await runStudentFilters();
+    } catch (e) {
+      setErrorMessage((e as Error).message);
+    } finally {
+      setLoading(false);
+    }
   }
 
   async function createBulkStudents() {
     if (!token || !bulkInput.trim()) return;
-    const studentsPayload = bulkInput
-      .split('\n')
-      .map((line) => line.trim())
-      .filter((line, index) => {
-        if (index === 0 && (line.toLowerCase().includes('roll') || line.toLowerCase().includes('full name'))) return false;
-        return Boolean(line);
-      })
-      .map((line) => {
-        const [rollNumber, fullName, batch, branch, section, email, phone, defaultPassword] = line.split(',').map((p) => p.trim());
-        return {
-          rollNumber,
-          fullName,
-          batch: Number(batch),
-          branch,
-          section: section || undefined,
-          email: email || undefined,
-          phone: phone || undefined,
-          defaultPassword: defaultPassword || 'Student@123',
-        };
-      });
+    setLoading(true);
+    setErrorMessage('');
     try {
+      const studentsPayload = bulkInput
+        .split('\n')
+        .map((line) => line.trim())
+        .filter((line, index) => {
+          if (index === 0 && (line.toLowerCase().includes('roll') || line.toLowerCase().includes('full name'))) return false;
+          return Boolean(line);
+        })
+        .map((line) => {
+          const parts = line.split(',');
+          const [rollNumber, fullName, batch, branch, section, email, phone, defaultPassword] = parts.map((p) => p?.trim());
+          return {
+            rollNumber,
+            fullName,
+            batch: Number(batch),
+            branch,
+            section: section || undefined,
+            email: email || undefined,
+            phone: phone || undefined,
+            defaultPassword: defaultPassword || 'Student@123',
+          };
+        });
       const result = await api.createStudentsBulk(token, studentsPayload);
       setGlobalMessage(`Bulk complete: ${(result as any).createdCount} created, ${(result as any).failedCount} failed.`);
       setBulkInput('');
+      await runStudentFilters();
     } catch (e) {
-      setGlobalMessage(`Bulk failed: ${(e as Error).message}`);
+      setErrorMessage(`Bulk failed: ${(e as Error).message}`);
+    } finally {
+      setLoading(false);
     }
   }
 
   async function deleteStudent(id: string) {
     if (!token || !window.confirm('Are you sure you want to delete this student and all their records?')) return;
-    await api.deleteStudent(token, id);
-    setStudents((p) => p.filter((s) => s.id !== id));
-    if (selectedStudent?.id === id) setSelectedStudent(null);
-    setGlobalMessage('Student deleted successfully.');
+    setLoading(true);
+    setErrorMessage('');
+    try {
+      await api.deleteStudent(token, id);
+      setStudents((p) => p.filter((s) => s.id !== id));
+      if (selectedStudent?.id === id) setSelectedStudent(null);
+      setGlobalMessage('Student deleted successfully.');
+    } catch (e) {
+      setErrorMessage((e as Error).message);
+    } finally {
+      setLoading(false);
+    }
   }
 
   async function updateStudent() {
     if (!token || !editingStudent) return;
-    await api.updateStudent(token, editingStudent.id, {
-      fullName: editingStudent.fullName,
-      email: editingStudent.email,
-      phone: editingStudent.phone,
-      batch: Number(editingStudent.batch),
-      branch: editingStudent.branch,
-      section: editingStudent.section,
-    });
-    setEditingStudent(null);
-    await runStudentFilters();
-    setGlobalMessage('Student updated successfully.');
+    setLoading(true);
+    setErrorMessage('');
+    try {
+      await api.updateStudent(token, editingStudent.id, {
+        fullName: editingStudent.fullName,
+        email: editingStudent.email,
+        phone: editingStudent.phone,
+        batch: Number(editingStudent.batch),
+        branch: editingStudent.branch,
+        section: editingStudent.section,
+      });
+      setEditingStudent(null);
+      await runStudentFilters();
+      setGlobalMessage('Student updated successfully.');
+    } catch (e) {
+      setErrorMessage((e as Error).message);
+    } finally {
+      setLoading(false);
+    }
   }
 
   async function createAnnouncement() {
     if (!token || !newAnnouncement.title) return;
-    await api.createAnnouncement(token, newAnnouncement);
-    setNewAnnouncement({ title: '', description: '', type: 'OTHER', link: '' });
-    setGlobalMessage('Announcement posted.');
-    if (user?.role === 'STUDENT') await loadStudentData(token);
+    setLoading(true);
+    setErrorMessage('');
+    try {
+      await api.createAnnouncement(token, newAnnouncement);
+      setNewAnnouncement({ title: '', description: '', type: 'OTHER', link: '' });
+      setGlobalMessage('Announcement posted.');
+      await loadAnnouncementsOnly();
+    } catch (e) {
+      setErrorMessage((e as Error).message);
+    } finally {
+      setLoading(false);
+    }
   }
 
   async function deleteAnnouncement(id: string) {
-    if (!token) return;
-    await api.deleteAnnouncement(token, id);
-    setAnnouncements((p) => p.filter((a) => a.id !== id));
-    setGlobalMessage('Announcement deleted.');
+    if (!token || !window.confirm('Delete this announcement?')) return;
+    setLoading(true);
+    setErrorMessage('');
+    try {
+      await api.deleteAnnouncement(token, id);
+      setAnnouncements((p) => p.filter((a) => a.id !== id));
+      setGlobalMessage('Announcement deleted.');
+    } catch (e) {
+      setErrorMessage((e as Error).message);
+    } finally {
+      setLoading(false);
+    }
   }
 
   function exportFilteredStudents() {
@@ -526,28 +740,28 @@ export default function App() {
                   <div className="progress-bar" style={{ height: '6px', background: '#e2e8f0', borderRadius: '3px', overflow: 'hidden', width: '100%', margin: '10px 0' }}>
                     <div style={{ height: '100%', background: '#2563eb', width: `${((mandatorySummary.mandatory.length - mandatorySummary.missing.length) / mandatorySummary.mandatory.length) * 100}%` }}></div>
                   </div>
-                  <button>View Section</button>
+                  <button onClick={() => setStudentView('documents')}>View Section</button>
                 </div>
                 <div className="card dashboard-card" onClick={() => setStudentView('certifications')}>
                   <div style={{ fontSize: '2rem' }}>🏆</div>
                   <h3>Certifications</h3>
                   <p>{certifications.length} certificates uploaded</p>
                   <p className="muted" style={{ fontSize: '0.8rem' }}>Internships, Courses, etc.</p>
-                  <button>View Section</button>
+                  <button onClick={() => setStudentView('certifications')}>View Section</button>
                 </div>
                 <div className="card dashboard-card" onClick={() => setStudentView('announcements')}>
                   <div style={{ fontSize: '2rem' }}>🔔</div>
                   <h3>Updates & News</h3>
                   <p>{announcements.length} new updates available</p>
                   <p className="muted" style={{ fontSize: '0.8rem' }}>Check latest internships & events</p>
-                  <button>View Section</button>
+                  <button onClick={() => setStudentView('announcements')}>View Section</button>
                 </div>
                 <div className="card dashboard-card" onClick={() => setStudentView('academic')}>
                   <div style={{ fontSize: '2rem' }}>🎓</div>
                   <h3>Academic Scores</h3>
                   <p>Current CGPA: {profile?.currentCgpa || 'N/A'}</p>
                   <p className="muted" style={{ fontSize: '0.8rem' }}>Update your CGPA and percentages</p>
-                  <button>View Section</button>
+                  <button onClick={() => setStudentView('academic')}>View Section</button>
                 </div>
               </section>
             )}
@@ -614,6 +828,7 @@ export default function App() {
               <>
                 <section className="card fade-in" id="internship-certs">
                   <h3>Upload New Certification</h3>
+                  {loading && <p className="muted pulse">Refreshing data...</p>}
                   <div className="stack cols-2">
                     <Field label="Requirement Field">
                       <select value={selectedCertTypeId} onChange={(e) => setSelectedCertTypeId(e.target.value)}>
@@ -683,6 +898,7 @@ export default function App() {
             {studentView === 'announcements' && (
               <section className="card fade-in">
                 <h3>Internships, Workshops & Updates</h3>
+                {loading && <p className="muted pulse">Refreshing data...</p>}
                 {selectedAnnouncement ? (
                   <div className="card glow" style={{ borderLeft: '4px solid #2563eb', marginBottom: '20px' }}>
                     <button className="muted" style={{ background: 'none', border: 'none', padding: 0, marginBottom: '10px', cursor: 'pointer' }} onClick={() => setSelectedAnnouncement(null)}>← Back to all updates</button>
@@ -725,6 +941,7 @@ export default function App() {
             {studentView === 'academic' && (
               <section className="card fade-in" id="academic-section">
                 <h3>Academic Scores (Student Entry)</h3>
+                {loading && <p className="muted pulse">Refreshing data...</p>}
                 {profile && <p className="muted">{profile.rollNumber} - {profile.fullName}</p>}
                 <div className="stack cols-2">
                   <Field label="10th Marks"><input value={studentAcademic.tenthMarks} onChange={(e) => setStudentAcademic((p) => ({ ...p, tenthMarks: e.target.value }))} /></Field>
@@ -780,6 +997,7 @@ export default function App() {
           <main className="grid">
             {adminView === 'dashboard' && (
               <section className="dashboard-grid">
+                {loading && <p className="muted pulse">Refreshing data...</p>}
                 <div className="card dashboard-card" onClick={() => setAdminView('students')}>
                   <h3>Manage Students</h3>
                   <p>View, filter, edit & delete students</p>
@@ -801,6 +1019,7 @@ export default function App() {
             {adminView === 'requirements' && (
               <section className="card fade-in">
                 <h3>Create Requirement Fields</h3>
+                {loading && <p className="muted pulse">Refreshing data...</p>}
                 <div className="stack">
                   <input placeholder="New document field" value={newDocType} onChange={(e) => setNewDocType(e.target.value)} />
                   <button onClick={createDocumentRequirement}>Create Document Field</button>
@@ -842,6 +1061,7 @@ export default function App() {
               <>
                 <section className="card fade-in">
                   <h3>Create Students</h3>
+                  {loading && <p className="muted pulse">Refreshing data...</p>}
                   <div className="stack cols-2">
                     <input placeholder="Roll Number" value={newStudent.rollNumber} onChange={(e) => setNewStudent((p) => ({ ...p, rollNumber: e.target.value }))} />
                     <input placeholder="Full Name" value={newStudent.fullName} onChange={(e) => setNewStudent((p) => ({ ...p, fullName: e.target.value }))} />
