@@ -1568,6 +1568,49 @@ export default function App() {
           </main>
         </>
       )}
+
+      <AnimatePresence>
+        {editingStudent && (
+          <div className="modal-overlay">
+            <motion.div 
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.9, opacity: 0 }}
+              className="card modal-content"
+              style={{ maxWidth: '600px' }}
+            >
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+                <h3>Edit Student: {editingStudent.rollNumber}</h3>
+                <button className="secondary" onClick={() => setEditingStudent(null)}><X size={18} /></button>
+              </div>
+              <div className="grid cols-2">
+                <Field label="Full Name" icon={User}>
+                  <input value={editingStudent.fullName} onChange={(e) => setEditingStudent({...editingStudent, fullName: e.target.value})} />
+                </Field>
+                <Field label="Email" icon={Mail}>
+                  <input value={editingStudent.email || ''} onChange={(e) => setEditingStudent({...editingStudent, email: e.target.value})} />
+                </Field>
+                <Field label="Phone" icon={Phone}>
+                  <input value={editingStudent.phone || ''} onChange={(e) => setEditingStudent({...editingStudent, phone: e.target.value})} />
+                </Field>
+                <Field label="Batch" icon={Filter}>
+                  <input value={editingStudent.batch} onChange={(e) => setEditingStudent({...editingStudent, batch: e.target.value})} />
+                </Field>
+                <Field label="Branch" icon={Filter}>
+                  <input value={editingStudent.branch} onChange={(e) => setEditingStudent({...editingStudent, branch: e.target.value})} />
+                </Field>
+                <Field label="Section" icon={Filter}>
+                  <input value={editingStudent.section || ''} onChange={(e) => setEditingStudent({...editingStudent, section: e.target.value})} />
+                </Field>
+              </div>
+              <div className="row-actions" style={{ marginTop: '20px', justifyContent: 'flex-end' }}>
+                <button className="secondary" onClick={() => setEditingStudent(null)}>Cancel</button>
+                <button onClick={updateStudent}><Check size={18} /> Save Changes</button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }
