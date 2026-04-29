@@ -1,12 +1,22 @@
 import { ReactNode, useEffect, useMemo, useState } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
+import { 
+  User, FileText, Award, Bell, GraduationCap, Settings, 
+  LogOut, Upload, Download, Trash2, Edit, Check, X, 
+  Search, Filter, Plus, Users, LayoutDashboard, ChevronRight,
+  Shield, ShieldOff, Eye, FilePlus, UserPlus, AlertCircle, Mail, Phone
+} from 'lucide-react';
 import LoginPage from './pages/auth/LoginPage';
 import { api } from './lib/api';
 import { AuthUser, Certification, DocumentType, LoginResponse, StudentDocument, StudentProfile, Visibility } from './types';
 
-function Field({ label, children }: { label: string; children: ReactNode }) {
+function Field({ label, icon: Icon, children }: { label: string; icon?: any; children: ReactNode }) {
   return (
     <label className="field">
-      <span>{label}</span>
+      <span>
+        {Icon && <Icon size={14} style={{ marginRight: '4px', verticalAlign: 'middle' }} />}
+        {label}
+      </span>
       {children}
     </label>
   );
@@ -42,6 +52,7 @@ export default function App() {
 
   const [studentView, setStudentView] = useState<'dashboard' | 'documents' | 'certifications' | 'academic' | 'announcements' | 'settings'>('dashboard');
   const [adminView, setAdminView] = useState<'dashboard' | 'students' | 'requirements' | 'announcements' | 'settings'>('dashboard');
+  const [manageStudentsTab, setManageStudentsTab] = useState<'list' | 'add' | 'bulk' | 'review'>('list');
 
   const getFileUrl = (path: string) => {
     if (!path) return '#';
@@ -668,16 +679,26 @@ export default function App() {
 
   function exportFilteredStudents() {
     downloadCsv(
-      'filtered_students.csv',
+      'complete_student_details.csv',
       students.map((s) => ({
         rollNumber: s.rollNumber,
         fullName: s.fullName,
+        email: s.email || 'N/A',
+        phone: s.phone || 'N/A',
         batch: s.batch,
         branch: s.branch,
-        tenthPercentage: s.tenthPercentage ?? '',
-        interPercentage: s.interPercentage ?? '',
-        btechCgpa: s.btechCgpa ?? s.currentCgpa ?? '',
-        backlogsCount: s.backlogsCount ?? '',
+        section: s.section || 'N/A',
+        tenthMarks: s.tenthMarks ?? 'N/A',
+        tenthPercentage: s.tenthPercentage ?? 'N/A',
+        interMarks: s.interMarks ?? 'N/A',
+        interPercentage: s.interPercentage ?? 'N/A',
+        btechCgpa: s.btechCgpa ?? s.currentCgpa ?? 'N/A',
+        btechPercentage: s.btechPercentage ?? 'N/A',
+        backlogsCount: s.backlogsCount ?? 0,
+        certificatesCount: (s as any).certifications?.length || 0,
+        documentsCount: (s as any).documents?.length || 0,
+        certificates: (s as any).certifications?.map((c: any) => `${c.title} (${c.provider})`).join('; ') || 'None',
+        documents: (s as any).documents?.map((d: any) => d.documentType?.name).join('; ') || 'None',
       })),
     );
   }
@@ -704,20 +725,26 @@ export default function App() {
       {errorMessage && <p className="message danger pulse" style={{ background: '#fef2f2', color: '#dc2626', borderColor: '#fecaca' }}>{errorMessage}</p>}
 
       {mustChangePassword && (
-        <section className="card glow auth-card">
-          <h3>First Login Password Change</h3>
-          <p className="muted" style={{ fontSize: '0.85rem', marginBottom: '10px' }}>
-            Password must be at least 8 characters long and contain:
-            <br />• One uppercase letter
-            <br />• One lowercase letter
-            <br />• One number or special character
-          </p>
-          <div className="stack">
-            <input type="password" placeholder="Current password" value={oldPassword} onChange={(e) => setOldPassword(e.target.value)} />
-            <input type="password" placeholder="New password" value={newPassword} onChange={(e) => setNewPassword(e.target.value)} />
-            <button onClick={changePasswordFirstTime}>Change Password</button>
-          </div>
-        </section>
+        <div className="auth-page">
+          <motion.section 
+            initial={{ scale: 0.9, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+            className="card auth-card"
+          >
+            <h3 style={{ display: 'flex', alignItems: 'center', gap: '8px' }}><Shield size={20} /> Password Change Required</h3>
+            <p className="muted" style={{ fontSize: '0.85rem', margin: '15px 0' }}>
+              For security, please change your password before proceeding.
+              <br />• Min 8 characters
+              <br />• Uppercase & lowercase
+              <br />• Number or special char
+            </p>
+            <div className="stack">
+              <Field label="Current Password" icon={Shield}><input type="password" placeholder="••••••••" value={oldPassword} onChange={(e) => setOldPassword(e.target.value)} /></Field>
+              <Field label="New Password" icon={Plus}><input type="password" placeholder="••••••••" value={newPassword} onChange={(e) => setNewPassword(e.target.value)} /></Field>
+              <button onClick={changePasswordFirstTime} style={{ marginTop: '10px' }}><Check size={18} /> Update & Continue</button>
+            </div>
+          </motion.section>
+        </div>
       )}
 
       {!mustChangePassword && user.role === 'STUDENT' && (
@@ -825,161 +852,196 @@ export default function App() {
             )}
 
             {studentView === 'certifications' && (
-              <>
-                <section className="card fade-in" id="internship-certs">
-                  <h3>Upload New Certification</h3>
-                  {loading && <p className="muted pulse">Refreshing data...</p>}
-                  <div className="stack cols-2">
-                    <Field label="Requirement Field">
+              <motion.div 
+                key="certifications"
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -10 }}
+                className="stack"
+              >
+                <section className="card">
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+                    <h3>Upload New Certification</h3>
+                    {loading && <p className="muted pulse">Refreshing...</p>}
+                  </div>
+                  <div className="grid cols-2">
+                    <Field label="Requirement Field" icon={Award}>
                       <select value={selectedCertTypeId} onChange={(e) => setSelectedCertTypeId(e.target.value)}>
                         <option value="">Select field</option>
                         {certTypes.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
                       </select>
                     </Field>
-                    <Field label="Custom Requirement (Optional)">
+                    <Field label="Custom Requirement (Optional)" icon={Filter}>
                       <input placeholder="e.g. Google Internship" value={certRequirement} onChange={(e) => setCertRequirement(e.target.value)} />
                     </Field>
-                    <Field label="Title">
+                    <Field label="Title" icon={FileText}>
                       <input placeholder="Title" value={certTitle} onChange={(e) => setCertTitle(e.target.value)} />
                     </Field>
-                    <Field label="Provider">
+                    <Field label="Provider" icon={Users}>
                       <input placeholder="Provider" value={certProvider} onChange={(e) => setCertProvider(e.target.value)} />
                     </Field>
-                    <Field label="Category">
+                    <Field label="Category" icon={Filter}>
                       <input placeholder="Internship/Course/etc" value={certCategory} onChange={(e) => setCertCategory(e.target.value)} />
                     </Field>
-                    <Field label="Visibility">
+                    <Field label="Visibility" icon={certVisibility === 'SHARED' ? Eye : ShieldOff}>
                       <select value={certVisibility} onChange={(e) => setCertVisibility(e.target.value as Visibility)}>
                         <option value="SHARED">Shared</option>
                         <option value="PRIVATE">Private</option>
                       </select>
                     </Field>
-                    <Field label="File">
+                    <Field label="File" icon={Plus}>
                       <input type="file" onChange={(e) => setCertFile(e.target.files?.[0] || null)} />
                     </Field>
                   </div>
-                  <button onClick={uploadCertification} style={{ marginTop: '10px' }}>Upload Certification</button>
+                  <button onClick={uploadCertification} style={{ marginTop: '20px' }} disabled={!certFile || !certTitle || !certProvider}><Upload size={18} /> Upload Certification</button>
                 </section>
 
-                <section className="card fade-in" id="course-certs">
+                <section className="card">
                   <h3>Uploaded Certifications</h3>
+                  {Object.entries(groupedCertifications).length === 0 ? <p className="muted" style={{ textAlign: 'center', padding: '20px' }}>No certifications uploaded yet.</p> : null}
                   {Object.entries(groupedCertifications).map(([req, certs]) => (
                     <div key={req} style={{ marginBottom: '20px' }}>
-                      <h5 style={{ borderBottom: '1px solid #cbd5e1', paddingBottom: '5px' }}>{req}</h5>
-                      <ul className="list">
+                      <h5 style={{ borderBottom: '1px solid var(--border)', paddingBottom: '10px', marginBottom: '15px', color: 'var(--primary)' }}>{req}</h5>
+                      <div className="stack">
                         {certs.map((c) => (
-                          <li key={c.id} className="list-item">
-                            <div>
-                              <b>{c.title}</b> - {c.provider}
-                              <div className="muted">
-                                Field: {c.certificationType?.name || 'General'} | 
-                                Status: <span className={`badge badge-${c.status.toLowerCase()}`}>{c.status}</span> | 
-                                Remarks: {c.remarks || 'N/A'}
+                          <div key={c.id} className="review-item" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '15px' }}>
+                            <div style={{ flex: 1 }}>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                <Award size={16} className="muted" />
+                                <b>{c.title}</b>
+                              </div>
+                              <div className="muted" style={{ fontSize: '0.85rem', marginTop: '4px' }}>
+                                {c.provider} | Field: {c.certificationType?.name || 'General'} | Status: <span className={`badge badge-${c.status.toLowerCase()}`}>{c.status}</span>
+                                {c.visibility === 'PRIVATE' && <span className="badge danger" style={{ marginLeft: '8px' }}><ShieldOff size={10} /> Private</span>}
                               </div>
                             </div>
                             <div className="row-actions">
-                                <a href={getFileUrl(c.filePath)} target="_blank" rel="noreferrer"><button>View</button></a>
-                                <a href={getFileUrl(c.filePath)} download><button>Download</button></a>
-                                <div className="replace-action">
-                                <input type="file" onChange={(e) => setReplaceCertFile((p) => ({ ...p, [c.id]: e.target.files?.[0] || null }))} />
-                                <button onClick={() => replaceCertification(c)}>Edit/Reupload</button>
-                              </div>
-                              <button className="danger" onClick={() => deleteCertification(c.id)}>Delete</button>
+                              <a href={getFileUrl(c.filePath)} target="_blank" rel="noreferrer"><button className="secondary"><Eye size={14} /> View</button></a>
+                              <button className={c.visibility === 'SHARED' ? 'secondary' : ''} onClick={() => toggleCertVisibility(c.id, c.visibility)}>
+                                {c.visibility === 'SHARED' ? <Shield size={14} /> : <ShieldOff size={14} />} 
+                                {c.visibility === 'SHARED' ? 'Make Private' : 'Make Shared'}
+                              </button>
+                              <button className="danger" onClick={() => deleteCertification(c.id)}><Trash2 size={14} /> Delete</button>
                             </div>
-                          </li>
+                          </div>
                         ))}
-                      </ul>
+                      </div>
                     </div>
                   ))}
                 </section>
-              </>
+              </motion.div>
             )}
 
             {studentView === 'announcements' && (
-              <section className="card fade-in">
-                <h3>Internships, Workshops & Updates</h3>
-                {loading && <p className="muted pulse">Refreshing data...</p>}
+              <motion.section 
+                key="announcements"
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -10 }}
+                className="card"
+              >
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+                  <h3>Internships, Workshops & Updates</h3>
+                  {loading && <p className="muted pulse">Refreshing...</p>}
+                </div>
                 {selectedAnnouncement ? (
-                  <div className="card glow" style={{ borderLeft: '4px solid #2563eb', marginBottom: '20px' }}>
-                    <button className="muted" style={{ background: 'none', border: 'none', padding: 0, marginBottom: '10px', cursor: 'pointer' }} onClick={() => setSelectedAnnouncement(null)}>← Back to all updates</button>
+                  <div className="card" style={{ borderLeft: '4px solid var(--primary)', marginBottom: '20px', background: '#f8fafc' }}>
+                    <button className="secondary" style={{ marginBottom: '20px' }} onClick={() => setSelectedAnnouncement(null)}>← Back to all updates</button>
                     <div style={{ display: 'flex', gap: '8px', marginBottom: '12px' }}>
-                      <span className="badge" style={{ background: '#dbeafe', color: '#1e40af', padding: '4px 12px', borderRadius: '6px', fontSize: '0.85rem', fontWeight: 'bold' }}>{selectedAnnouncement.type}</span>
+                      <span className="badge badge-approved">{selectedAnnouncement.type}</span>
                       <span className="muted" style={{ fontSize: '0.85rem' }}>Posted on {new Date(selectedAnnouncement.createdAt).toLocaleDateString()}</span>
                     </div>
                     <h2>{selectedAnnouncement.title}</h2>
-                    <p style={{ fontSize: '1.1rem', lineHeight: '1.6', whiteSpace: 'pre-wrap' }}>{selectedAnnouncement.description}</p>
+                    <p style={{ fontSize: '1.1rem', lineHeight: '1.6', whiteSpace: 'pre-wrap', margin: '20px 0' }}>{selectedAnnouncement.description}</p>
                     {selectedAnnouncement.link && (
-                      <div style={{ marginTop: '20px' }}>
-                        <a href={selectedAnnouncement.link} target="_blank" rel="noreferrer">
-                          <button style={{ padding: '12px 24px', fontSize: '1rem' }}>Apply / View Details</button>
-                        </a>
-                      </div>
+                      <a href={selectedAnnouncement.link} target="_blank" rel="noreferrer">
+                        <button style={{ padding: '12px 24px' }}>Apply / View Details <ChevronRight size={16} /></button>
+                      </a>
                     )}
                   </div>
                 ) : (
                   <div className="stack">
-                    {announcements.length === 0 ? <p className="muted">No updates available at the moment.</p> : null}
+                    {announcements.length === 0 ? <p className="muted" style={{ textAlign: 'center', padding: '40px' }}>No updates available at the moment.</p> : null}
                     {announcements.map((a) => (
-                      <div key={a.id} className="card announcement-card" onClick={() => setSelectedAnnouncement(a)} style={{ borderLeft: '4px solid #2563eb', cursor: 'pointer' }}>
+                      <div key={a.id} className="review-item announcement-card" onClick={() => setSelectedAnnouncement(a)} style={{ cursor: 'pointer' }}>
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                          <div>
-                            <span className="badge" style={{ background: '#dbeafe', color: '#1e40af', padding: '2px 8px', borderRadius: '4px', fontSize: '0.75rem', fontWeight: 'bold' }}>{a.type}</span>
-                            <h4 style={{ margin: '8px 0 4px 0' }}>{a.title}</h4>
-                            <p className="muted" style={{ margin: 0, fontSize: '0.85rem', overflow: 'hidden', textOverflow: 'ellipsis', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' }}>
+                          <div style={{ flex: 1 }}>
+                            <span className="badge badge-approved">{a.type}</span>
+                            <h4 style={{ margin: '12px 0 8px 0' }}>{a.title}</h4>
+                            <p className="muted" style={{ margin: 0, fontSize: '0.9rem', overflow: 'hidden', textOverflow: 'ellipsis', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' }}>
                               {a.description}
                             </p>
                           </div>
-                          <button style={{ background: '#f1f5f9', color: '#2563eb', border: 'none' }}>View</button>
+                          <ChevronRight size={20} className="muted" style={{ marginLeft: '15px', alignSelf: 'center' }} />
                         </div>
                       </div>
                     ))}
                   </div>
                 )}
-              </section>
+              </motion.section>
             )}
 
             {studentView === 'academic' && (
-              <section className="card fade-in" id="academic-section">
-                <h3>Academic Scores (Student Entry)</h3>
-                {loading && <p className="muted pulse">Refreshing data...</p>}
-                {profile && <p className="muted">{profile.rollNumber} - {profile.fullName}</p>}
-                <div className="stack cols-2">
-                  <Field label="10th Marks"><input value={studentAcademic.tenthMarks} onChange={(e) => setStudentAcademic((p) => ({ ...p, tenthMarks: e.target.value }))} /></Field>
-                  <Field label="10th %"><input value={studentAcademic.tenthPercentage} onChange={(e) => setStudentAcademic((p) => ({ ...p, tenthPercentage: e.target.value }))} /></Field>
-                  <Field label="Inter Marks"><input value={studentAcademic.interMarks} onChange={(e) => setStudentAcademic((p) => ({ ...p, interMarks: e.target.value }))} /></Field>
-                  <Field label="Inter %"><input value={studentAcademic.interPercentage} onChange={(e) => setStudentAcademic((p) => ({ ...p, interPercentage: e.target.value }))} /></Field>
-                  <Field label="B.Tech CGPA"><input value={studentAcademic.btechCgpa} onChange={(e) => setStudentAcademic((p) => ({ ...p, btechCgpa: e.target.value }))} /></Field>
-                  <Field label="B.Tech %"><input value={studentAcademic.btechPercentage} onChange={(e) => setStudentAcademic((p) => ({ ...p, btechPercentage: e.target.value }))} /></Field>
-                  <Field label="Backlogs"><input value={studentAcademic.backlogsCount} onChange={(e) => setStudentAcademic((p) => ({ ...p, backlogsCount: e.target.value }))} /></Field>
+              <motion.section 
+                key="academic"
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -10 }}
+                className="card"
+              >
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+                  <h3>Academic Scores</h3>
+                  {loading && <p className="muted pulse">Saving...</p>}
                 </div>
-                <button onClick={saveAcademicProfile} style={{ marginTop: '10px' }}>Save Academic Details</button>
-              </section>
+                {profile && <p className="muted" style={{ marginBottom: '20px' }}><User size={14} /> {profile.rollNumber} - {profile.fullName}</p>}
+                <div className="grid cols-2">
+                  <Field label="10th Marks" icon={GraduationCap}><input value={studentAcademic.tenthMarks} onChange={(e) => setStudentAcademic((p) => ({ ...p, tenthMarks: e.target.value }))} /></Field>
+                  <Field label="10th %" icon={GraduationCap}><input value={studentAcademic.tenthPercentage} onChange={(e) => setStudentAcademic((p) => ({ ...p, tenthPercentage: e.target.value }))} /></Field>
+                  <Field label="Inter Marks" icon={GraduationCap}><input value={studentAcademic.interMarks} onChange={(e) => setStudentAcademic((p) => ({ ...p, interMarks: e.target.value }))} /></Field>
+                  <Field label="Inter %" icon={GraduationCap}><input value={studentAcademic.interPercentage} onChange={(e) => setStudentAcademic((p) => ({ ...p, interPercentage: e.target.value }))} /></Field>
+                  <Field label="B.Tech CGPA" icon={GraduationCap}><input value={studentAcademic.btechCgpa} onChange={(e) => setStudentAcademic((p) => ({ ...p, btechCgpa: e.target.value }))} /></Field>
+                  <Field label="B.Tech %" icon={GraduationCap}><input value={studentAcademic.btechPercentage} onChange={(e) => setStudentAcademic((p) => ({ ...p, btechPercentage: e.target.value }))} /></Field>
+                  <Field label="Backlogs" icon={AlertCircle}><input value={studentAcademic.backlogsCount} onChange={(e) => setStudentAcademic((p) => ({ ...p, backlogsCount: e.target.value }))} /></Field>
+                </div>
+                <button onClick={saveAcademicProfile} style={{ marginTop: '20px', width: '100%' }}><Check size={18} /> Save Academic Details</button>
+              </motion.section>
             )}
 
             {studentView === 'settings' && (
-              <section className="card fade-in">
-                <h3>Account Settings</h3>
-                <div className="stack">
-                  <h4>Change Password</h4>
-                  <p className="muted" style={{ fontSize: '0.85rem' }}>
-                    Password must be at least 8 characters long and contain uppercase, lowercase, and a number/special char.
-                  </p>
-                  <input type="password" placeholder="Current password" value={oldPassword} onChange={(e) => setOldPassword(e.target.value)} />
-                  <input type="password" placeholder="New password" value={newPassword} onChange={(e) => setNewPassword(e.target.value)} />
-                  <button onClick={changePasswordFirstTime}>Update Password</button>
-                </div>
-                <div className="stack" style={{ marginTop: '20px' }}>
-                  <h4>Profile Information</h4>
+              <motion.section 
+                key="settings"
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -10 }}
+                className="stack"
+              >
+                <section className="card">
+                  <h3>Account Settings</h3>
+                  <div className="stack" style={{ marginTop: '20px' }}>
+                    <h4>Change Password</h4>
+                    <p className="muted" style={{ fontSize: '0.85rem' }}>
+                      Password must be at least 8 characters long and contain uppercase, lowercase, and a number/special char.
+                    </p>
+                    <div className="grid cols-2">
+                      <Field label="Current Password" icon={Shield}><input type="password" placeholder="••••••••" value={oldPassword} onChange={(e) => setOldPassword(e.target.value)} /></Field>
+                      <Field label="New Password" icon={Plus}><input type="password" placeholder="••••••••" value={newPassword} onChange={(e) => setNewPassword(e.target.value)} /></Field>
+                    </div>
+                    <button onClick={changePasswordFirstTime} style={{ width: 'fit-content' }}>Update Password</button>
+                  </div>
+                </section>
+
+                <section className="card">
+                  <h3>Profile Information</h3>
                   {profile && (
-                    <div className="stack">
-                      <Field label="Full Name"><input value={profile.fullName} readOnly /></Field>
-                      <Field label="Roll Number"><input value={profile.rollNumber} readOnly /></Field>
-                      <Field label="Email"><input value={profile.email || ''} readOnly /></Field>
-                      <Field label="Phone"><input value={profile.phone || ''} readOnly /></Field>
+                    <div className="grid cols-2" style={{ marginTop: '20px' }}>
+                      <Field label="Full Name" icon={User}><input value={profile.fullName} readOnly /></Field>
+                      <Field label="Roll Number" icon={FileText}><input value={profile.rollNumber} readOnly /></Field>
+                      <Field label="Email" icon={Mail}><input value={profile.email || ''} readOnly /></Field>
+                      <Field label="Phone" icon={Phone}><input value={profile.phone || ''} readOnly /></Field>
                     </div>
                   )}
-                </div>
-              </section>
+                </section>
+              </motion.section>
             )}
           </main>
         </>
@@ -988,238 +1050,426 @@ export default function App() {
       {user.role === 'ADMIN' && (
         <>
           <nav className="card section-nav">
-            <button className={adminView === 'dashboard' ? 'active' : ''} onClick={() => setAdminView('dashboard')}>Dashboard</button>
-            <button className={adminView === 'students' ? 'active' : ''} onClick={() => setAdminView('students')}>Manage Students</button>
-            <button className={adminView === 'requirements' ? 'active' : ''} onClick={() => setAdminView('requirements')}>Requirement Fields</button>
-            <button className={adminView === 'announcements' ? 'active' : ''} onClick={() => setAdminView('announcements')}>Post Updates</button>
-            <button className={adminView === 'settings' ? 'active' : ''} onClick={() => setAdminView('settings')}>Settings</button>
+            <button className={adminView === 'dashboard' ? 'active' : ''} onClick={() => setAdminView('dashboard')}>
+              <LayoutDashboard size={18} /> Dashboard
+            </button>
+            <button className={adminView === 'students' ? 'active' : ''} onClick={() => setAdminView('students')}>
+              <Users size={18} /> Manage Students
+            </button>
+            <button className={adminView === 'requirements' ? 'active' : ''} onClick={() => setAdminView('requirements')}>
+              <FilePlus size={18} /> Requirement Fields
+            </button>
+            <button className={adminView === 'announcements' ? 'active' : ''} onClick={() => setAdminView('announcements')}>
+              <Bell size={18} /> Post Updates
+            </button>
+            <button className={adminView === 'settings' ? 'active' : ''} onClick={() => setAdminView('settings')}>
+              <Settings size={18} /> Settings
+            </button>
           </nav>
           <main className="grid">
-            {adminView === 'dashboard' && (
-              <section className="dashboard-grid">
-                {loading && <p className="muted pulse">Refreshing data...</p>}
-                <div className="card dashboard-card" onClick={() => setAdminView('students')}>
-                  <h3>Manage Students</h3>
-                  <p>View, filter, edit & delete students</p>
-                  <button>View Section</button>
-                </div>
-                <div className="card dashboard-card" onClick={() => setAdminView('requirements')}>
-                  <h3>Requirement Fields</h3>
-                  <p>Create document/certification fields</p>
-                  <button>View Section</button>
-                </div>
-                <div className="card dashboard-card" onClick={() => setAdminView('announcements')}>
-                  <h3>Post Updates</h3>
-                  <p>Post internships & workshops</p>
-                  <button>View Section</button>
-                </div>
-              </section>
-            )}
+            <AnimatePresence mode="wait">
+              {adminView === 'dashboard' && (
+                <motion.section 
+                  key="admin-dashboard"
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -10 }}
+                  className="dashboard-grid"
+                >
+                  <div className="card dashboard-card" onClick={() => setAdminView('students')}>
+                    <div className="icon-wrapper"><Users /></div>
+                    <h3>Manage Students</h3>
+                    <p>View, filter, edit & delete students</p>
+                    <button className="secondary">View Section <ChevronRight size={14} /></button>
+                  </div>
+                  <div className="card dashboard-card" onClick={() => setAdminView('requirements')}>
+                    <div className="icon-wrapper"><FilePlus /></div>
+                    <h3>Requirement Fields</h3>
+                    <p>Create document/certification fields</p>
+                    <button className="secondary">View Section <ChevronRight size={14} /></button>
+                  </div>
+                  <div className="card dashboard-card" onClick={() => setAdminView('announcements')}>
+                    <div className="icon-wrapper"><Bell /></div>
+                    <h3>Post Updates</h3>
+                    <p>Post internships & workshops</p>
+                    <button className="secondary">View Section <ChevronRight size={14} /></button>
+                  </div>
+                </motion.section>
+              )}
 
             {adminView === 'requirements' && (
-              <section className="card fade-in">
-                <h3>Create Requirement Fields</h3>
-                {loading && <p className="muted pulse">Refreshing data...</p>}
-                <div className="stack">
-                  <input placeholder="New document field" value={newDocType} onChange={(e) => setNewDocType(e.target.value)} />
-                  <button onClick={createDocumentRequirement}>Create Document Field</button>
-                  <hr />
-                  <input placeholder="New certification field" value={newCertType} onChange={(e) => setNewCertType(e.target.value)} />
-                  <button onClick={createCertificationRequirement}>Create Certification Field</button>
+              <motion.section 
+                key="requirements"
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="card"
+              >
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+                  <h3>Create Requirement Fields</h3>
+                  {loading && <p className="muted pulse">Processing...</p>}
                 </div>
-              </section>
+                <div className="stack">
+                  <div className="grid cols-2">
+                    <Field label="New Document Field" icon={FilePlus}>
+                      <div style={{ display: 'flex', gap: '10px' }}>
+                        <input style={{ flex: 1 }} placeholder="e.g. 10th Memo" value={newDocType} onChange={(e) => setNewDocType(e.target.value)} />
+                        <button onClick={createDocumentRequirement}><Plus size={16} /> Add</button>
+                      </div>
+                    </Field>
+                    <Field label="New Certification Field" icon={Award}>
+                      <div style={{ display: 'flex', gap: '10px' }}>
+                        <input style={{ flex: 1 }} placeholder="e.g. Python Course" value={newCertType} onChange={(e) => setNewCertType(e.target.value)} />
+                        <button onClick={createCertificationRequirement}><Plus size={16} /> Add</button>
+                      </div>
+                    </Field>
+                  </div>
+                </div>
+                
+                <div className="grid cols-2" style={{ marginTop: '30px' }}>
+                  <div className="card" style={{ background: '#f8fafc', boxShadow: 'none', border: '1px solid var(--border)' }}>
+                    <h4>Active Document Types</h4>
+                    <div className="stack" style={{ marginTop: '15px' }}>
+                      {docTypes.map(dt => (
+                        <div key={dt.id} className="badge secondary" style={{ justifyContent: 'space-between', padding: '8px 12px' }}>
+                          {dt.name} {dt.isMandatory && <span className="badge badge-approved" style={{ fontSize: '0.6rem' }}>Mandatory</span>}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                  <div className="card" style={{ background: '#f8fafc', boxShadow: 'none', border: '1px solid var(--border)' }}>
+                    <h4>Active Certification Types</h4>
+                    <div className="stack" style={{ marginTop: '15px' }}>
+                      {certTypes.map(ct => (
+                        <div key={ct.id} className="badge secondary" style={{ justifyContent: 'space-between', padding: '8px 12px' }}>
+                          {ct.name}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              </motion.section>
             )}
 
             {adminView === 'announcements' && (
-              <section className="card fade-in">
-                <h3>Post Internships, Workshops & Updates</h3>
-                <div className="stack" style={{ marginBottom: '20px' }}>
-                  <input placeholder="Title" value={newAnnouncement.title} onChange={(e) => setNewAnnouncement((p) => ({ ...p, title: e.target.value }))} />
-                  <textarea placeholder="Description" value={newAnnouncement.description} onChange={(e) => setNewAnnouncement((p) => ({ ...p, description: e.target.value }))} />
-                  <select value={newAnnouncement.type} onChange={(e) => setNewAnnouncement((p) => ({ ...p, type: e.target.value }))}>
-                    <option value="INTERNSHIP">Internship</option>
-                    <option value="WORKSHOP">Workshop</option>
-                    <option value="TRAINING">Training</option>
-                    <option value="OTHER">Other</option>
-                  </select>
-                  <input placeholder="Link (Optional)" value={newAnnouncement.link} onChange={(e) => setNewAnnouncement((p) => ({ ...p, link: e.target.value }))} />
-                  <button onClick={createAnnouncement}>Post Announcement</button>
+              <motion.section 
+                key="admin-announcements"
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="card"
+              >
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+                  <h3>Post Internships, Workshops & Updates</h3>
+                  {loading && <p className="muted pulse">Posting...</p>}
                 </div>
+                
+                <div className="stack" style={{ marginBottom: '30px', padding: '20px', border: '1px solid var(--border)', borderRadius: 'var(--radius)', background: '#f8fafc' }}>
+                  <div className="grid cols-2">
+                    <Field label="Title" icon={FileText}>
+                      <input placeholder="Announcement title" value={newAnnouncement.title} onChange={(e) => setNewAnnouncement((p) => ({ ...p, title: e.target.value }))} />
+                    </Field>
+                    <Field label="Category" icon={Filter}>
+                      <select value={newAnnouncement.type} onChange={(e) => setNewAnnouncement((p) => ({ ...p, type: e.target.value }))}>
+                        <option value="INTERNSHIP">Internship</option>
+                        <option value="WORKSHOP">Workshop</option>
+                        <option value="TRAINING">Training</option>
+                        <option value="OTHER">Other</option>
+                      </select>
+                    </Field>
+                  </div>
+                  <Field label="Description" icon={FileText}>
+                    <textarea placeholder="Detailed description..." value={newAnnouncement.description} onChange={(e) => setNewAnnouncement((p) => ({ ...p, description: e.target.value }))} />
+                  </Field>
+                  <Field label="Link (Optional)" icon={Eye}>
+                    <input placeholder="https://..." value={newAnnouncement.link} onChange={(e) => setNewAnnouncement((p) => ({ ...p, link: e.target.value }))} />
+                  </Field>
+                  <button onClick={createAnnouncement} disabled={!newAnnouncement.title}><Plus size={18} /> Post Announcement</button>
+                </div>
+
                 <h4>Recent Posts</h4>
-                <ul className="list">
+                <div className="stack">
+                  {announcements.length === 0 ? <p className="muted" style={{ textAlign: 'center', padding: '20px' }}>No announcements posted yet.</p> : null}
                   {announcements.map((a) => (
-                    <li key={a.id} className="list-item">
-                      <span><b>{a.title}</b> ({a.type})</span>
-                      <button className="danger" onClick={() => deleteAnnouncement(a.id)}>Delete</button>
-                    </li>
+                    <div key={a.id} className="review-item" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <div>
+                        <span className="badge badge-approved" style={{ marginBottom: '4px' }}>{a.type}</span>
+                        <h4 style={{ margin: 0 }}>{a.title}</h4>
+                        <p className="muted" style={{ fontSize: '0.85rem' }}>{new Date(a.createdAt).toLocaleDateString()}</p>
+                      </div>
+                      <button className="danger" onClick={() => deleteAnnouncement(a.id)}><Trash2 size={16} /> Delete</button>
+                    </div>
                   ))}
-                </ul>
-              </section>
+                </div>
+              </motion.section>
             )}
 
             {adminView === 'students' && (
-              <>
-                <section className="card fade-in">
-                  <h3>Create Students</h3>
-                  {loading && <p className="muted pulse">Refreshing data...</p>}
-                  <div className="stack cols-2">
-                    <input placeholder="Roll Number" value={newStudent.rollNumber} onChange={(e) => setNewStudent((p) => ({ ...p, rollNumber: e.target.value }))} />
-                    <input placeholder="Full Name" value={newStudent.fullName} onChange={(e) => setNewStudent((p) => ({ ...p, fullName: e.target.value }))} />
-                    <input placeholder="Batch" value={newStudent.batch} onChange={(e) => setNewStudent((p) => ({ ...p, batch: e.target.value }))} />
-                    <input placeholder="Branch" value={newStudent.branch} onChange={(e) => setNewStudent((p) => ({ ...p, branch: e.target.value }))} />
-                    <input placeholder="Section" value={newStudent.section} onChange={(e) => setNewStudent((p) => ({ ...p, section: e.target.value }))} />
-                    <input placeholder="Email" value={newStudent.email} onChange={(e) => setNewStudent((p) => ({ ...p, email: e.target.value }))} />
-                    <input placeholder="Phone" value={newStudent.phone} onChange={(e) => setNewStudent((p) => ({ ...p, phone: e.target.value }))} />
-                    <input placeholder="Default Password" value={newStudent.defaultPassword} onChange={(e) => setNewStudent((p) => ({ ...p, defaultPassword: e.target.value }))} />
-                  </div>
-                  <button onClick={createStudent} style={{ marginTop: '10px' }}>Create Student</button>
-                  <hr />
-                  <h4>Bulk Student Creation</h4>
-                  <p className="muted">Bulk format: roll,fullName,batch,branch,section,email,phone,password</p>
-                  <textarea rows={6} value={bulkInput} onChange={(e) => setBulkInput(e.target.value)} placeholder="Paste CSV data here..." />
-                  <div className="row-actions">
-                    <button onClick={createBulkStudents}>Create Bulk Students from Text</button>
-                    <input type="file" accept=".csv" onChange={async (e) => {
-                      const file = e.target.files?.[0];
-                      if (file) {
-                        const text = await file.text();
-                        setBulkInput(text);
-                      }
-                    }} />
-                  </div>
-                </section>
+              <motion.div 
+                key="manage-students"
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="stack"
+              >
+                <nav className="card section-nav sub-nav">
+                  <button className={manageStudentsTab === 'list' ? 'active' : ''} onClick={() => setManageStudentsTab('list')}>
+                    <Users size={18} /> Student List & Filters
+                  </button>
+                  <button className={manageStudentsTab === 'add' ? 'active' : ''} onClick={() => setManageStudentsTab('add')}>
+                    <UserPlus size={18} /> Add New Student
+                  </button>
+                  <button className={manageStudentsTab === 'bulk' ? 'active' : ''} onClick={() => setManageStudentsTab('bulk')}>
+                    <Upload size={18} /> Bulk Upload
+                  </button>
+                  <button className={manageStudentsTab === 'review' ? 'active' : ''} onClick={() => setManageStudentsTab('review')}>
+                    <Eye size={18} /> Review Uploads
+                  </button>
+                </nav>
 
-                <section className="card fade-in">
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
-                    <h3>Filter Students</h3>
-                    <button onClick={exportFilteredStudents} style={{ background: '#059669' }}>Export to CSV</button>
-                  </div>
-                  <div className="stack cols-3">
-                    <Field label="Search (Roll/Name)"><input placeholder="Search..." value={filterSearch} onChange={(e) => setFilterSearch(e.target.value)} /></Field>
-                    <Field label="Batch"><input placeholder="e.g. 2024" value={filterBatch} onChange={(e) => setFilterBatch(e.target.value)} /></Field>
-                    <Field label="Branch"><input placeholder="e.g. CSE" value={filterBranch} onChange={(e) => setFilterBranch(e.target.value)} /></Field>
-                    <Field label="Min 10th %"><input type="number" value={filterMinTenth} onChange={(e) => setFilterMinTenth(e.target.value)} /></Field>
-                    <Field label="Min Inter %"><input type="number" value={filterMinInter} onChange={(e) => setFilterMinInter(e.target.value)} /></Field>
-                    <Field label="Min B.Tech CGPA"><input type="number" step="0.01" value={filterMinBtechCgpa} onChange={(e) => setFilterMinBtechCgpa(e.target.value)} /></Field>
-                    <Field label="Max Backlogs"><input type="number" value={filterMaxBacklogs} onChange={(e) => setFilterMaxBacklogs(e.target.value)} /></Field>
-                  </div>
-                  <button onClick={runStudentFilters} style={{ marginTop: '16px', width: '100%' }}>Apply Filters</button>
-                </section>
+                <AnimatePresence mode="wait">
+                  {manageStudentsTab === 'add' && (
+                    <motion.section 
+                      key="add-student"
+                      initial={{ opacity: 0, x: 20 }}
+                      animate={{ opacity: 1, x: 0 }}
+                      exit={{ opacity: 0, x: -20 }}
+                      className="card"
+                    >
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+                        <h3>Create Single Student</h3>
+                        <button className="secondary" onClick={() => setManageStudentsTab('list')}>Back to List</button>
+                      </div>
+                      <div className="grid cols-2">
+                        <Field label="Roll Number" icon={FileText}><input placeholder="e.g. 21B91A0501" value={newStudent.rollNumber} onChange={(e) => setNewStudent((p) => ({ ...p, rollNumber: e.target.value }))} /></Field>
+                        <Field label="Full Name" icon={User}><input placeholder="Full Name" value={newStudent.fullName} onChange={(e) => setNewStudent((p) => ({ ...p, fullName: e.target.value }))} /></Field>
+                        <Field label="Batch" icon={Filter}><input placeholder="e.g. 2024" value={newStudent.batch} onChange={(e) => setNewStudent((p) => ({ ...p, batch: e.target.value }))} /></Field>
+                        <Field label="Branch" icon={Filter}><input placeholder="e.g. CSE" value={newStudent.branch} onChange={(e) => setNewStudent((p) => ({ ...p, branch: e.target.value }))} /></Field>
+                        <Field label="Section" icon={Filter}><input placeholder="e.g. A" value={newStudent.section} onChange={(e) => setNewStudent((p) => ({ ...p, section: e.target.value }))} /></Field>
+                        <Field label="Email" icon={Mail}><input placeholder="Email" value={newStudent.email} onChange={(e) => setNewStudent((p) => ({ ...p, email: e.target.value }))} /></Field>
+                        <Field label="Phone" icon={Phone}><input placeholder="Phone" value={newStudent.phone} onChange={(e) => setNewStudent((p) => ({ ...p, phone: e.target.value }))} /></Field>
+                        <Field label="Default Password" icon={Shield}><input placeholder="Default Password" value={newStudent.defaultPassword} onChange={(e) => setNewStudent((p) => ({ ...p, defaultPassword: e.target.value }))} /></Field>
+                      </div>
+                      <button onClick={createStudent} style={{ marginTop: '20px', width: '100%' }}><Plus size={18} /> Create Student</button>
+                    </motion.section>
+                  )}
 
-                <section className="card fade-in" style={{ marginTop: '20px' }}>
-                  <h3>Student List ({students.length})</h3>
-                  <div className="stack">
-                    {students.length === 0 ? <p className="muted">No students found with current filters.</p> : null}
-                    <div className="table-container" style={{ overflowX: 'auto' }}>
-                      <table style={{ width: '100%', borderCollapse: 'collapse', marginTop: '10px' }}>
-                        <thead>
-                          <tr style={{ background: '#f8fafc', borderBottom: '2px solid #e2e8f0' }}>
-                            <th style={{ padding: '12px', textAlign: 'left' }}>Roll No</th>
-                            <th style={{ padding: '12px', textAlign: 'left' }}>Full Name</th>
-                            <th style={{ padding: '12px', textAlign: 'left' }}>Branch</th>
-                            <th style={{ padding: '12px', textAlign: 'left' }}>CGPA</th>
-                            <th style={{ padding: '12px', textAlign: 'right' }}>Actions</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {students.map((s) => (
-                            <tr key={s.id} style={{ borderBottom: '1px solid #e2e8f0' }}>
-                              <td style={{ padding: '12px' }}>{s.rollNumber}</td>
-                              <td style={{ padding: '12px' }}>{s.fullName}</td>
-                              <td style={{ padding: '12px' }}>{s.branch}</td>
-                              <td style={{ padding: '12px' }}>{s.btechCgpa || s.currentCgpa || 'N/A'}</td>
-                              <td style={{ padding: '12px', textAlign: 'right' }}>
-                                <div className="row-actions" style={{ justifyContent: 'flex-end' }}>
-                                  <button onClick={() => viewStudent(s.id)}>Review</button>
-                                  <button onClick={() => setEditingStudent(s)} style={{ background: '#f59e0b' }}>Edit</button>
-                                  <button onClick={() => deleteStudent(s.id)} className="danger">Delete</button>
-                                </div>
-                              </td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    </div>
-                  </div>
-                </section>
+                  {manageStudentsTab === 'bulk' && (
+                    <motion.section 
+                      key="bulk-student"
+                      initial={{ opacity: 0, x: 20 }}
+                      animate={{ opacity: 1, x: 0 }}
+                      exit={{ opacity: 0, x: -20 }}
+                      className="card"
+                    >
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+                        <h3>Bulk Student Creation</h3>
+                        <button className="secondary" onClick={() => setManageStudentsTab('list')}>Back to List</button>
+                      </div>
+                      <p className="muted" style={{ marginBottom: '15px' }}>Format: roll,fullName,batch,branch,section,email,phone,password</p>
+                      <textarea rows={8} value={bulkInput} onChange={(e) => setBulkInput(e.target.value)} placeholder="Paste CSV data here..." />
+                      <div className="row-actions" style={{ marginTop: '15px' }}>
+                        <button onClick={createBulkStudents} style={{ flex: 2 }}><Upload size={18} /> Create Bulk Students</button>
+                        <div style={{ flex: 1, position: 'relative' }}>
+                          <input type="file" accept=".csv" style={{ position: 'absolute', opacity: 0, width: '100%', height: '100%', cursor: 'pointer' }} onChange={async (e) => {
+                            const file = e.target.files?.[0];
+                            if (file) {
+                              const text = await file.text();
+                              setBulkInput(text);
+                            }
+                          }} />
+                          <button className="secondary" style={{ width: '100%' }}><FilePlus size={18} /> Upload CSV</button>
+                        </div>
+                      </div>
+                    </motion.section>
+                  )}
 
-                {editingStudent && (
-                  <section className="card glow fade-in">
-                    <h3>Edit Student: {editingStudent.rollNumber}</h3>
-                    <div className="stack cols-2">
-                      <Field label="Full Name"><input value={editingStudent.fullName} onChange={(e) => setEditingStudent({ ...editingStudent, fullName: e.target.value })} /></Field>
-                      <Field label="Email"><input value={editingStudent.email || ''} onChange={(e) => setEditingStudent({ ...editingStudent, email: e.target.value })} /></Field>
-                      <Field label="Phone"><input value={editingStudent.phone || ''} onChange={(e) => setEditingStudent({ ...editingStudent, phone: e.target.value })} /></Field>
-                      <Field label="Batch"><input value={editingStudent.batch} onChange={(e) => setEditingStudent({ ...editingStudent, batch: e.target.value })} /></Field>
-                      <Field label="Branch"><input value={editingStudent.branch} onChange={(e) => setEditingStudent({ ...editingStudent, branch: e.target.value })} /></Field>
-                      <Field label="Section"><input value={editingStudent.section || ''} onChange={(e) => setEditingStudent({ ...editingStudent, section: e.target.value })} /></Field>
-                    </div>
-                    <div className="row-actions" style={{ marginTop: '15px' }}>
-                      <button onClick={updateStudent}>Save Changes</button>
-                      <button onClick={() => setEditingStudent(null)}>Cancel</button>
-                    </div>
-                  </section>
-                )}
+                  {manageStudentsTab === 'list' && (
+                    <motion.div 
+                      key="student-list"
+                      initial={{ opacity: 0, x: 20 }}
+                      animate={{ opacity: 1, x: 0 }}
+                      exit={{ opacity: 0, x: -20 }}
+                      className="stack"
+                    >
+                      <section className="card">
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+                          <h3 style={{ display: 'flex', alignItems: 'center', gap: '8px' }}><Filter size={18} /> Filter Students</h3>
+                          <div style={{ display: 'flex', gap: '10px' }}>
+                            <button onClick={exportFilteredStudents} style={{ background: '#059669' }}><Download size={18} /> Export All Details</button>
+                          </div>
+                        </div>
+                        <div className="grid cols-3">
+                          <Field label="Search" icon={Search}><input placeholder="Roll or Name" value={filterSearch} onChange={(e) => setFilterSearch(e.target.value)} /></Field>
+                          <Field label="Batch" icon={Filter}><input placeholder="e.g. 2024" value={filterBatch} onChange={(e) => setFilterBatch(e.target.value)} /></Field>
+                          <Field label="Branch" icon={Filter}><input placeholder="e.g. CSE" value={filterBranch} onChange={(e) => setFilterBranch(e.target.value)} /></Field>
+                          <Field label="Min 10th %" icon={GraduationCap}><input type="number" value={filterMinTenth} onChange={(e) => setFilterMinTenth(e.target.value)} /></Field>
+                          <Field label="Min Inter %" icon={GraduationCap}><input type="number" value={filterMinInter} onChange={(e) => setFilterMinInter(e.target.value)} /></Field>
+                          <Field label="Min B.Tech CGPA" icon={GraduationCap}><input type="number" step="0.01" value={filterMinBtechCgpa} onChange={(e) => setFilterMinBtechCgpa(e.target.value)} /></Field>
+                          <Field label="Max Backlogs" icon={AlertCircle}><input type="number" value={filterMaxBacklogs} onChange={(e) => setFilterMaxBacklogs(e.target.value)} /></Field>
+                        </div>
+                        <button onClick={runStudentFilters} style={{ marginTop: '20px', width: '100%' }}><Search size={18} /> Apply Filters</button>
+                      </section>
 
-                <section className="card fade-in">
-                  <h3>Admin Review</h3>
-                  {!selectedStudent ? <p>Select a student to review uploads.</p> : null}
-                  {selectedStudent ? (
-                    <>
-                      <p><b>{selectedStudent.rollNumber}</b> - {selectedStudent.fullName}</p>
-                      <h4>Documents</h4>
-                      <ul className="list">
-                        {selectedStudent.documents.map((d: StudentDocument) => (
-                          <li key={d.id} className="list-item">
-                            <div>
-                              <b>{d.documentType.name}</b> - {d.fileName} ({d.status})
-                              {d.requirement && <div className="muted">Requirement: {d.requirement}</div>}
+                      <section className="card">
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px' }}>
+                          <h3>Student List ({students.length})</h3>
+                        </div>
+                        <div className="stack">
+                          {students.length === 0 ? <p className="muted" style={{ textAlign: 'center', padding: '20px' }}>No students found. Try applying filters.</p> : null}
+                          <div className="table-container">
+                            <table>
+                              <thead>
+                                <tr>
+                                  <th>Roll No</th>
+                                  <th>Full Name</th>
+                                  <th>Branch</th>
+                                  <th>CGPA</th>
+                                  <th style={{ textAlign: 'right' }}>Actions</th>
+                                </tr>
+                              </thead>
+                              <tbody>
+                                {students.map((s) => (
+                                  <tr key={s.id}>
+                                    <td>{s.rollNumber}</td>
+                                    <td><b>{s.fullName}</b></td>
+                                    <td>{s.branch}</td>
+                                    <td><span className="badge badge-approved">{s.btechCgpa || s.currentCgpa || 'N/A'}</span></td>
+                                    <td style={{ textAlign: 'right' }}>
+                                      <div className="row-actions" style={{ justifyContent: 'flex-end' }}>
+                                        <button className="secondary" onClick={() => { viewStudent(s.id); setManageStudentsTab('review'); }}><Eye size={14} /> Review</button>
+                                        <button className="warning" onClick={() => setEditingStudent(s)}><Edit size={14} /> Edit</button>
+                                        <button className="danger" onClick={() => deleteStudent(s.id)}><Trash2 size={14} /></button>
+                                      </div>
+                                    </td>
+                                  </tr>
+                                ))}
+                              </tbody>
+                            </table>
+                          </div>
+                        </div>
+                      </section>
+                    </motion.div>
+                  )}
+
+                  {manageStudentsTab === 'review' && (
+                    <motion.section 
+                      key="review-student"
+                      initial={{ opacity: 0, x: 20 }}
+                      animate={{ opacity: 1, x: 0 }}
+                      exit={{ opacity: 0, x: -20 }}
+                      className="card"
+                    >
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+                        <h3>Admin Review</h3>
+                        <button className="secondary" onClick={() => setManageStudentsTab('list')}>Back to List</button>
+                      </div>
+                      {!selectedStudent ? (
+                        <div style={{ textAlign: 'center', padding: '40px' }}>
+                          <p className="muted">No student selected for review.</p>
+                          <button onClick={() => setManageStudentsTab('list')} style={{ marginTop: '15px' }}>Go to Student List</button>
+                        </div>
+                      ) : (
+                        <div className="stack">
+                          <div className="card" style={{ background: '#f8fafc', boxShadow: 'none', border: '1px solid var(--border)' }}>
+                            <h4 style={{ display: 'flex', alignItems: 'center', gap: '8px', color: 'var(--primary)' }}><User size={18} /> Student Information</h4>
+                            <div className="grid cols-3" style={{ fontSize: '0.9rem', marginTop: '15px' }}>
+                              <div><span className="muted">Name:</span> <b>{selectedStudent.fullName}</b></div>
+                              <div><span className="muted">Roll No:</span> <b>{selectedStudent.rollNumber}</b></div>
+                              <div><span className="muted">Branch:</span> <b>{selectedStudent.branch}</b></div>
+                              <div><span className="muted">Batch:</span> <b>{selectedStudent.batch}</b></div>
+                              <div><span className="muted">CGPA:</span> <b className="badge badge-approved">{selectedStudent.btechCgpa || selectedStudent.currentCgpa || 'N/A'}</b></div>
+                              <div><span className="muted">Backlogs:</span> <b className="badge danger">{selectedStudent.backlogsCount || 0}</b></div>
                             </div>
-                            <div className="row-actions">
-                              <a href={getFileUrl(d.filePath)} target="_blank" rel="noreferrer"><button>View</button></a>
-                              <a href={getFileUrl(d.filePath)} download><button>Download</button></a>
-                              <input placeholder="Remarks" value={reviewRemarks[d.id] || ''} onChange={(e) => setReviewRemarks((p) => ({ ...p, [d.id]: e.target.value }))} />
-                              <button onClick={() => reviewDocument(d.id, 'APPROVED')}>Accept</button>
-                              <button className="danger" onClick={() => reviewDocument(d.id, 'REJECTED')}>Reject</button>
-                            </div>
-                          </li>
-                        ))}
-                      </ul>
-                      <h4>Certifications</h4>
-                      <ul className="list">
-                        {selectedStudent.certifications.map((c: Certification) => (
-                          <li key={c.id} className="list-item">
-                            <div>
-                              <b>{c.title}</b> - {c.provider} ({c.status})
-                              {c.requirement && <div className="muted">Requirement: {c.requirement}</div>}
-                            </div>
-                            <div className="row-actions">
-                              <a href={getFileUrl(c.filePath)} target="_blank" rel="noreferrer"><button>View</button></a>
-                              <a href={getFileUrl(c.filePath)} download><button>Download</button></a>
-                              <input placeholder="Remarks" value={reviewRemarks[c.id] || ''} onChange={(e) => setReviewRemarks((p) => ({ ...p, [c.id]: e.target.value }))} />
-                              <button onClick={() => reviewCertification(c.id, 'APPROVED')}>Accept</button>
-                              <button className="danger" onClick={() => reviewCertification(c.id, 'REJECTED')}>Reject</button>
-                            </div>
-                          </li>
-                        ))}
-                      </ul>
-                    </>
-                  ) : null}
-                </section>
-              </>
+                          </div>
+
+                          <div style={{ marginTop: '25px' }}>
+                            <h4 style={{ display: 'flex', alignItems: 'center', gap: '8px' }}><FileText size={18} /> Mandatory Documents</h4>
+                            {selectedStudent.documents.length === 0 ? <p className="muted" style={{ padding: '15px' }}>No documents uploaded.</p> : (
+                              <div className="stack" style={{ marginTop: '15px' }}>
+                                {selectedStudent.documents.map((d: StudentDocument) => (
+                                  <div key={d.id} className="review-item">
+                                    <div className="review-info">
+                                      <div style={{ flex: 1 }}>
+                                        <b>{d.documentType.name}</b>
+                                        <div className="muted" style={{ fontSize: '0.85rem', marginTop: '4px' }}>
+                                          {d.fileName} | Status: <span className={`badge badge-${d.status.toLowerCase()}`}>{d.status}</span>
+                                          {d.requirement && <span> | Req: {d.requirement}</span>}
+                                        </div>
+                                      </div>
+                                      <a href={getFileUrl(d.filePath)} target="_blank" rel="noreferrer"><button className="secondary"><Eye size={14} /> View Document</button></a>
+                                    </div>
+                                    <div className="review-controls">
+                                      <input 
+                                        placeholder="Add evaluation remarks..." 
+                                        style={{ flex: 1, background: '#ffffff' }} 
+                                        value={reviewRemarks[d.id] || ''} 
+                                        onChange={(e) => setReviewRemarks((p) => ({ ...p, [d.id]: e.target.value }))} 
+                                      />
+                                      <button className="success" onClick={() => reviewDocument(d.id, 'APPROVED')}><Check size={14} /> Approve</button>
+                                      <button className="danger" onClick={() => reviewDocument(d.id, 'REJECTED')}><X size={14} /> Reject</button>
+                                    </div>
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+
+                          <div style={{ marginTop: '25px' }}>
+                            <h4 style={{ display: 'flex', alignItems: 'center', gap: '8px' }}><Award size={18} /> Certifications</h4>
+                            {selectedStudent.certifications.length === 0 ? <p className="muted" style={{ padding: '15px' }}>No certifications uploaded.</p> : (
+                              <div className="stack" style={{ marginTop: '15px' }}>
+                                {selectedStudent.certifications.map((c: Certification) => (
+                                  <div key={c.id} className="review-item">
+                                    <div className="review-info">
+                                      <div style={{ flex: 1 }}>
+                                        <b>{c.title}</b>
+                                        <div className="muted" style={{ fontSize: '0.85rem', marginTop: '4px' }}>
+                                          {c.provider} | Field: {c.certificationType?.name || 'General'} | Status: <span className={`badge badge-${c.status.toLowerCase()}`}>{c.status}</span>
+                                        </div>
+                                      </div>
+                                      <a href={getFileUrl(c.filePath)} target="_blank" rel="noreferrer"><button className="secondary"><Eye size={14} /> View Certificate</button></a>
+                                    </div>
+                                    <div className="review-controls">
+                                      <input 
+                                        placeholder="Add evaluation remarks..." 
+                                        style={{ flex: 1, background: '#ffffff' }} 
+                                        value={reviewRemarks[c.id] || ''} 
+                                        onChange={(e) => setReviewRemarks((p) => ({ ...p, [c.id]: e.target.value }))} 
+                                      />
+                                      <button className="success" onClick={() => reviewCertification(c.id, 'APPROVED')}><Check size={14} /> Approve</button>
+                                      <button className="danger" onClick={() => reviewCertification(c.id, 'REJECTED')}><X size={14} /> Reject</button>
+                                    </div>
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      )}
+                    </motion.section>
+                  )}
+                </AnimatePresence>
+              </motion.div>
             )}
 
             {adminView === 'settings' && (
-              <section className="card fade-in">
+              <motion.section 
+                key="admin-settings"
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -10 }}
+                className="card"
+              >
                 <h3>Admin Settings</h3>
-                <div className="stack">
+                <div className="stack" style={{ marginTop: '20px' }}>
                   <h4>Change Admin Password</h4>
-                  <input type="password" placeholder="Current password" value={oldPassword} onChange={(e) => setOldPassword(e.target.value)} />
-                  <input type="password" placeholder="New password" value={newPassword} onChange={(e) => setNewPassword(e.target.value)} />
-                  <button onClick={changePasswordFirstTime}>Update Password</button>
+                  <div className="grid cols-2">
+                    <Field label="Current Password" icon={Shield}><input type="password" placeholder="••••••••" value={oldPassword} onChange={(e) => setOldPassword(e.target.value)} /></Field>
+                    <Field label="New Password" icon={Plus}><input type="password" placeholder="••••••••" value={newPassword} onChange={(e) => setNewPassword(e.target.value)} /></Field>
+                  </div>
+                  <button onClick={changePasswordFirstTime} style={{ width: 'fit-content' }}>Update Password</button>
                 </div>
-              </section>
+              </motion.section>
             )}
+          </AnimatePresence>
           </main>
         </>
       )}

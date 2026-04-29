@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, NotFoundException, ConflictException, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateStudentDto } from './dto/create-student.dto';
 import * as bcrypt from 'bcrypt';
@@ -10,33 +10,46 @@ export class StudentsService {
   constructor(private prisma: PrismaService) {}
 
   async createStudent(dto: CreateStudentDto) {
-    const passwordHash = await bcrypt.hash(dto.defaultPassword, 10);
+    const rollNumber = dto.rollNumber?.toUpperCase();
+    if (!rollNumber) throw new BadRequestException('Roll number is required');
 
-    const user = await this.prisma.user.create({
-      data: {
-        username: dto.rollNumber,
-        passwordHash,
-        role: Role.STUDENT,
-        mustChangePass: true,
-      },
+    // Check if student already exists
+    const existing = await this.prisma.user.findUnique({
+      where: { username: rollNumber },
     });
 
-    const student = await this.prisma.student.create({
-      data: {
-        userId: user.id,
-        rollNumber: dto.rollNumber,
-        fullName: dto.fullName,
-        email: dto.email,
-        phone: dto.phone,
-        batch: dto.batch,
-        branch: dto.branch,
-        section: dto.section,
-        // Academic scores are intentionally filled by student after first login.
-        backlogsCount: dto.backlogsCount || 0,
-      },
-    });
+    if (existing) {
+      throw new ConflictException(`Student with roll number ${rollNumber} already exists`);
+    }
 
-    return student;
+    const passwordHash = await bcrypt.hash(dto.defaultPassword || 'Student@123', 10);
+
+    return this.prisma.$transaction(async (tx) => {
+      const user = await tx.user.create({
+        data: {
+          username: rollNumber,
+          passwordHash,
+          role: Role.STUDENT,
+          mustChangePass: true,
+        },
+      });
+
+      const student = await tx.student.create({
+        data: {
+          userId: user.id,
+          rollNumber: rollNumber,
+          fullName: dto.fullName,
+          email: dto.email,
+          phone: dto.phone,
+          batch: Number(dto.batch),
+          branch: dto.branch,
+          section: dto.section,
+          backlogsCount: Number(dto.backlogsCount) || 0,
+        },
+      });
+
+      return student;
+    });
   }
 
   async createStudentsBulk(students: CreateStudentDto[]) {
@@ -91,8 +104,12 @@ export class StudentsService {
 
     // Basic filters
     if (filters.batch && filters.batch !== '') where.batch = Number(filters.batch);
-    if (filters.branch && filters.branch !== '') where.branch = filters.branch;
-    if (filters.section && filters.section !== '') where.section = filters.section;
+    if (filters.branch && filters.branch !== '') {
+      where.branch = { contains: filters.branch, mode: 'insensitive' };
+    }
+    if (filters.section && filters.section !== '') {
+      where.section = { contains: filters.section, mode: 'insensitive' };
+    }
     
     // Search filter
     if (filters.search && filters.search !== '') {
@@ -148,6 +165,10 @@ export class StudentsService {
         certifications: {
           where: { visibility: Visibility.SHARED },
         },
+        documents: {
+          where: { visibility: Visibility.SHARED },
+          include: { documentType: true },
+        },
       },
       orderBy: { rollNumber: 'asc' },
     });
@@ -173,12 +194,13 @@ export class StudentsService {
     }
 
     // If roll number is being updated, also update username in user table
-    if (rollNumber && rollNumber !== student.rollNumber) {
+    if (rollNumber && rollNumber.toUpperCase() !== student.rollNumber) {
+      const upRoll = rollNumber.toUpperCase();
       await this.prisma.user.update({
         where: { id: student.userId },
-        data: { username: rollNumber },
+        data: { username: upRoll },
       });
-      studentData.rollNumber = rollNumber;
+      studentData.rollNumber = upRoll;
     }
 
     return this.prisma.student.update({
@@ -207,9 +229,11 @@ export class StudentsService {
       where: { id: studentId },
       include: {
         documents: {
+          where: { visibility: Visibility.SHARED },
           include: { documentType: true },
         },
         certifications: {
+          where: { visibility: Visibility.SHARED },
           include: { certificationType: true },
           orderBy: { createdAt: 'desc' },
         },

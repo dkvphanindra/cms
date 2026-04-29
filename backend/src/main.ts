@@ -18,7 +18,11 @@ async function bootstrap() {
     credentials: true,
   });
 
-  app.useGlobalPipes(new ValidationPipe({ whitelist: true }));
+  app.useGlobalPipes(new ValidationPipe({ 
+    whitelist: true,
+    transform: true,
+    transformOptions: { enableImplicitConversion: true }
+  }));
 
   // Use process.cwd() to ensure we look for uploads in the project root
   app.useStaticAssets(join(process.cwd(), 'uploads'), {

@@ -13,8 +13,9 @@ export class AuthService {
   ) {}
 
   async login(dto: LoginDto) {
+    const username = dto.username.toUpperCase();
     const user = await this.prisma.user.findUnique({
-      where: { username: dto.username },
+      where: { username },
     });
 
     if (!user || !user.isActive) {

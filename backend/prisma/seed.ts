@@ -4,11 +4,16 @@ import * as bcrypt from 'bcrypt';
 const prisma = new PrismaClient();
 
 async function main() {
-  const adminUsername = 'admin';
+  const adminUsername = 'ADMIN';
   const adminPassword = 'Admin@123';
 
-  const existingAdmin = await prisma.user.findUnique({
-    where: { username: adminUsername },
+  const existingAdmin = await prisma.user.findFirst({
+    where: { 
+      username: {
+        equals: adminUsername,
+        mode: 'insensitive'
+      }
+    },
   });
 
   if (!existingAdmin) {
@@ -24,9 +29,17 @@ async function main() {
     });
 
     console.log('✅ Admin created');
-    console.log('Username: admin');
+    console.log('Username: ADMIN');
     console.log('Password: Admin@123');
   } else {
+    // Ensure the existing admin username is uppercase to match login logic
+    if (existingAdmin.username !== adminUsername) {
+      await prisma.user.update({
+        where: { id: existingAdmin.id },
+        data: { username: adminUsername }
+      });
+      console.log('ℹ️ Admin username updated to uppercase');
+    }
     console.log('ℹ️ Admin already exists');
   }
 
