@@ -239,20 +239,6 @@ export default function App() {
     }
   }
 
-  async function loadInitialData() {
-    if (!token || !user || mustChangePassword) return;
-    try {
-      if (user.role === 'STUDENT') {
-        await loadStudentData(token);
-      } else {
-        await loadAdminData(token);
-      }
-    } catch (e) {
-      setErrorMessage('Session expired. Please login again.');
-      logout();
-    }
-  }
-
   function setAuth(data: LoginResponse) {
     localStorage.setItem('token', data.accessToken);
     localStorage.setItem('user', JSON.stringify(data.user));
@@ -739,35 +725,6 @@ export default function App() {
       })),
     );
   }
-
-  async function loadInitialData() {
-    if (!token || !user || mustChangePassword) return;
-    try {
-      if (user.role === 'STUDENT') {
-        await loadStudentData(token);
-      } else {
-        await loadAdminData(token);
-      }
-    } catch (e) {
-      setErrorMessage('Session expired. Please login again.');
-      logout();
-    }
-  }
-
-  useEffect(() => {
-    const handleMouseMove = (e: MouseEvent) => {
-      const x = (e.clientX / window.innerWidth) * 100;
-      const y = (e.clientY / window.innerHeight) * 100;
-      document.documentElement.style.setProperty('--mouse-x', `${x}%`);
-      document.documentElement.style.setProperty('--mouse-y', `${y}%`);
-    };
-    window.addEventListener('mousemove', handleMouseMove);
-    return () => window.removeEventListener('mousemove', handleMouseMove);
-  }, []);
-
-  useEffect(() => {
-    loadInitialData();
-  }, [token, user?.role, mustChangePassword]);
 
   if (!token || !user) {
     return (
