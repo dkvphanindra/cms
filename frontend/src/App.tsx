@@ -226,6 +226,17 @@ export default function App() {
   }
 
   useEffect(() => {
+    const handleMouseMove = (e: MouseEvent) => {
+      const x = (e.clientX / window.innerWidth) * 100;
+      const y = (e.clientY / window.innerHeight) * 100;
+      document.documentElement.style.setProperty('--mouse-x', `${x}%`);
+      document.documentElement.style.setProperty('--mouse-y', `${y}%`);
+    };
+    window.addEventListener('mousemove', handleMouseMove);
+    return () => window.removeEventListener('mousemove', handleMouseMove);
+  }, []);
+
+  useEffect(() => {
     if (!token || !user || mustChangePassword) return;
     if (user.role === 'STUDENT') {
       loadStudentData(token);
@@ -678,6 +689,7 @@ export default function App() {
   }
 
   function exportFilteredStudents() {
+    const baseUrl = window.location.origin;
     downloadCsv(
       'complete_student_details.csv',
       students.map((s) => ({
@@ -698,7 +710,9 @@ export default function App() {
         certificatesCount: (s as any).certifications?.length || 0,
         documentsCount: (s as any).documents?.length || 0,
         certificates: (s as any).certifications?.map((c: any) => `${c.title} (${c.provider})`).join('; ') || 'None',
+        certificateLinks: (s as any).certifications?.map((c: any) => `${baseUrl}${getFileUrl(c.filePath)}`).join(' ; ') || 'None',
         documents: (s as any).documents?.map((d: any) => d.documentType?.name).join('; ') || 'None',
+        documentLinks: (s as any).documents?.map((d: any) => `${baseUrl}${getFileUrl(d.filePath)}`).join(' ; ') || 'None',
       })),
     );
   }
@@ -713,16 +727,46 @@ export default function App() {
 
   return (
     <div className="page">
-      <header className="header glass slide-in">
+      <motion.header 
+        initial={{ y: -20, opacity: 0 }}
+        animate={{ y: 0, opacity: 1 }}
+        className="header"
+      >
         <div>
-          <h1>Certificates Management Portal (CMP)</h1>
-          <p className="muted">Digital Student Locker | Documents, Internships, Courses</p>
-          <p className="muted">Logged in as {user.username} ({user.role})</p>
+          <h1>Certificates Management Portal</h1>
+          <p className="muted">Digital Student Locker | Documents & Certifications</p>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '8px', fontSize: '0.85rem' }}>
+            <span className="badge badge-approved" style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+              <User size={12} /> {user.username}
+            </span>
+            <span className="badge secondary" style={{ textTransform: 'capitalize' }}>{user.role}</span>
+          </div>
         </div>
-        <button onClick={logout}>Logout</button>
-      </header>
-      {globalMessage && <p className="message pulse">{globalMessage}</p>}
-      {errorMessage && <p className="message danger pulse" style={{ background: '#fef2f2', color: '#dc2626', borderColor: '#fecaca' }}>{errorMessage}</p>}
+        <button className="danger" onClick={logout}>
+          <LogOut size={18} /> Logout
+        </button>
+      </motion.header>
+      {globalMessage && (
+        <motion.p 
+          initial={{ opacity: 0, scale: 0.95 }}
+          animate={{ opacity: 1, scale: 1 }}
+          className="message"
+          style={{ marginBottom: '20px' }}
+        >
+          <Check size={18} /> {globalMessage}
+        </motion.p>
+      )}
+
+      {errorMessage && (
+        <motion.p 
+          initial={{ opacity: 0, scale: 0.95 }}
+          animate={{ opacity: 1, scale: 1 }}
+          className="message danger"
+          style={{ marginBottom: '20px', background: '#fef2f2', color: '#dc2626', borderColor: '#fecaca' }}
+        >
+          <X size={18} /> {errorMessage}
+        </motion.p>
+      )}
 
       {mustChangePassword && (
         <div className="auth-page">
@@ -759,96 +803,116 @@ export default function App() {
           </nav>
           <main className="grid">
             {studentView === 'dashboard' && (
-              <section className="dashboard-grid">
+              <motion.section 
+                key="dashboard"
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -10 }}
+                className="dashboard-grid"
+              >
                 <div className="card dashboard-card" onClick={() => setStudentView('documents')}>
-                  <div style={{ fontSize: '2rem' }}>📁</div>
+                  <div className="icon-wrapper"><FileText /></div>
                   <h3>Mandatory Documents</h3>
                   <p>Uploaded {mandatorySummary.mandatory.length - mandatorySummary.missing.length}/{mandatorySummary.mandatory.length}</p>
                   <div className="progress-bar" style={{ height: '6px', background: '#e2e8f0', borderRadius: '3px', overflow: 'hidden', width: '100%', margin: '10px 0' }}>
-                    <div style={{ height: '100%', background: '#2563eb', width: `${((mandatorySummary.mandatory.length - mandatorySummary.missing.length) / mandatorySummary.mandatory.length) * 100}%` }}></div>
+                    <div style={{ height: '100%', background: 'var(--primary)', width: `${((mandatorySummary.mandatory.length - mandatorySummary.missing.length) / (mandatorySummary.mandatory.length || 1)) * 100}%` }}></div>
                   </div>
-                  <button onClick={() => setStudentView('documents')}>View Section</button>
+                  <button className="secondary">View Section <ChevronRight size={14} /></button>
                 </div>
                 <div className="card dashboard-card" onClick={() => setStudentView('certifications')}>
-                  <div style={{ fontSize: '2rem' }}>🏆</div>
+                  <div className="icon-wrapper"><Award /></div>
                   <h3>Certifications</h3>
                   <p>{certifications.length} certificates uploaded</p>
                   <p className="muted" style={{ fontSize: '0.8rem' }}>Internships, Courses, etc.</p>
-                  <button onClick={() => setStudentView('certifications')}>View Section</button>
+                  <button className="secondary">View Section <ChevronRight size={14} /></button>
                 </div>
                 <div className="card dashboard-card" onClick={() => setStudentView('announcements')}>
-                  <div style={{ fontSize: '2rem' }}>🔔</div>
+                  <div className="icon-wrapper"><Bell /></div>
                   <h3>Updates & News</h3>
                   <p>{announcements.length} new updates available</p>
-                  <p className="muted" style={{ fontSize: '0.8rem' }}>Check latest internships & events</p>
-                  <button onClick={() => setStudentView('announcements')}>View Section</button>
+                  <button className="secondary">View Section <ChevronRight size={14} /></button>
                 </div>
                 <div className="card dashboard-card" onClick={() => setStudentView('academic')}>
-                  <div style={{ fontSize: '2rem' }}>🎓</div>
+                  <div className="icon-wrapper"><GraduationCap /></div>
                   <h3>Academic Scores</h3>
                   <p>Current CGPA: {profile?.currentCgpa || 'N/A'}</p>
-                  <p className="muted" style={{ fontSize: '0.8rem' }}>Update your CGPA and percentages</p>
-                  <button onClick={() => setStudentView('academic')}>View Section</button>
+                  <button className="secondary">View Section <ChevronRight size={14} /></button>
                 </div>
-              </section>
+              </motion.section>
             )}
 
             {studentView === 'documents' && (
-              <section className="card fade-in" id="mandatory-docs">
-                <h3>Mandatory Documents</h3>
-                {loading ? <p>Loading...</p> : null}
-                <div className="stack" style={{ marginBottom: '20px', padding: '15px', border: '1px solid #e2e8f0', borderRadius: '10px' }}>
-                  <h4>Upload Document</h4>
-                  <div className="stack cols-2">
-                    <Field label="Document Type">
+              <motion.section 
+                key="documents"
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -10 }}
+                className="card"
+              >
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+                  <h3>Mandatory Documents</h3>
+                  {loading && <p className="muted pulse">Refreshing...</p>}
+                </div>
+                
+                <div className="stack" style={{ marginBottom: '30px', padding: '20px', border: '1px solid var(--border)', borderRadius: 'var(--radius)', background: '#f8fafc' }}>
+                  <h4 style={{ display: 'flex', alignItems: 'center', gap: '8px' }}><Upload size={18} /> Upload New Document</h4>
+                  <div className="grid cols-2">
+                    <Field label="Document Type" icon={FileText}>
                       <select value={selectedDocTypeId} onChange={(e) => setSelectedDocTypeId(e.target.value)}>
                         {docTypes.map((d) => <option key={d.id} value={d.id}>{d.name}</option>)}
                       </select>
                     </Field>
-                    <Field label="Visibility">
+                    <Field label="Visibility" icon={docVisibility === 'SHARED' ? Eye : ShieldOff}>
                       <select value={docVisibility} onChange={(e) => setDocVisibility(e.target.value as Visibility)}>
                         <option value="SHARED">Shared (Admin can see)</option>
                         <option value="PRIVATE">Private (Only you)</option>
                       </select>
                     </Field>
-                    <Field label="Custom Requirement (Optional)">
+                    <Field label="Custom Requirement (Optional)" icon={Filter}>
                       <input placeholder="e.g. TCS Recruitment 2024" value={docRequirement} onChange={(e) => setDocRequirement(e.target.value)} />
                     </Field>
-                    <Field label="File">
+                    <Field label="File" icon={Plus}>
                       <input type="file" onChange={(e) => setDocFile(e.target.files?.[0] || null)} />
                     </Field>
                   </div>
-                  <button onClick={uploadDocument}>Upload Document</button>
+                  <button onClick={uploadDocument} disabled={!docFile}><Upload size={18} /> Upload Document</button>
                 </div>
 
                 <h4>Your Uploads</h4>
-                {Object.entries(groupedDocuments).map(([req, docs]) => (
-                  <div key={req} style={{ marginBottom: '20px' }}>
-                    <h5 style={{ borderBottom: '1px solid #cbd5e1', paddingBottom: '5px' }}>{req}</h5>
-                    <ul className="list">
-                      {docs.map((d) => (
-                        <li key={d.id} className="list-item">
-                          <div>
-                            <b>{d.documentType.name}</b> - {d.fileName}
-                            <div className="muted">
-                              Status: <span className={`badge badge-${d.status.toLowerCase()}`}>{d.status}</span> | Remarks: {d.remarks || 'N/A'}
+                <div className="stack">
+                  {Object.entries(groupedDocuments).length === 0 ? <p className="muted" style={{ textAlign: 'center', padding: '20px' }}>No documents uploaded yet.</p> : null}
+                  {Object.entries(groupedDocuments).map(([req, docs]) => (
+                    <div key={req} className="card" style={{ background: '#ffffff', boxShadow: 'none', border: '1px solid var(--border)' }}>
+                      <h5 style={{ borderBottom: '1px solid var(--border)', paddingBottom: '10px', marginBottom: '15px', color: 'var(--primary)' }}>{req}</h5>
+                      <div className="stack">
+                        {docs.map((d) => (
+                          <div key={d.id} className="review-item" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '15px' }}>
+                            <div style={{ flex: 1 }}>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                <FileText size={16} className="muted" />
+                                <b>{d.documentType.name}</b>
+                              </div>
+                              <div className="muted" style={{ fontSize: '0.85rem', marginTop: '4px' }}>
+                                {d.fileName} | Status: <span className={`badge badge-${d.status.toLowerCase()}`}>{d.status}</span>
+                                {d.visibility === 'PRIVATE' && <span className="badge danger" style={{ marginLeft: '8px' }}><ShieldOff size={10} /> Private</span>}
+                              </div>
+                              {d.remarks && <p style={{ fontSize: '0.8rem', color: '#ef4444', marginTop: '4px' }}><b>Remark:</b> {d.remarks}</p>}
+                            </div>
+                            <div className="row-actions">
+                              <a href={getFileUrl(d.filePath)} target="_blank" rel="noreferrer"><button className="secondary"><Eye size={14} /> View</button></a>
+                              <button className={d.visibility === 'SHARED' ? 'secondary' : ''} onClick={() => toggleDocVisibility(d.id, d.visibility)}>
+                                {d.visibility === 'SHARED' ? <Shield size={14} /> : <ShieldOff size={14} />} 
+                                {d.visibility === 'SHARED' ? 'Make Private' : 'Make Shared'}
+                              </button>
+                              <button className="danger" onClick={() => deleteDocument(d.id)}><Trash2 size={14} /> Delete</button>
                             </div>
                           </div>
-                          <div className="row-actions">
-                            <a href={getFileUrl(d.filePath)} target="_blank" rel="noreferrer"><button>View</button></a>
-                            <a href={getFileUrl(d.filePath)} download><button>Download</button></a>
-                            <div className="replace-action">
-                              <input type="file" onChange={(e) => setReplaceDocFile((p) => ({ ...p, [d.id]: e.target.files?.[0] || null }))} />
-                              <button onClick={() => replaceDocument(d)}>Edit/Reupload</button>
-                            </div>
-                            <button className="danger" onClick={() => deleteDocument(d.id)}>Delete</button>
-                          </div>
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
-                ))}
-              </section>
+                        ))}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </motion.section>
             )}
 
             {studentView === 'certifications' && (
