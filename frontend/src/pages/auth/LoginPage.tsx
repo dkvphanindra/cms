@@ -30,7 +30,7 @@ export default function LoginPage({ onLoginSuccess }: Props) {
   }
 
   return (
-    <div className="page auth-page custom-bg">
+    <div className="page auth-page">
       <motion.div 
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}

@@ -728,14 +728,14 @@ export default function App() {
 
   if (!token || !user) {
     return (
-      <div className="page custom-bg">
+      <div className="page">
         <LoginPage onLoginSuccess={handleLoginSuccess} />
       </div>
     );
   }
 
   return (
-    <div className="page custom-bg">
+    <div className="page">
       <motion.header 
         initial={{ y: -20, opacity: 0 }}
         animate={{ y: 0, opacity: 1 }}
@@ -778,7 +778,7 @@ export default function App() {
       )}
 
       {mustChangePassword && (
-        <div className="auth-page custom-bg">
+        <div className="auth-page">
           <motion.section 
             initial={{ scale: 0.9, opacity: 0 }}
             animate={{ scale: 1, opacity: 1 }}
