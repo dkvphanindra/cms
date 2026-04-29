@@ -225,25 +225,33 @@ export default function App() {
     }
   }
 
-  useEffect(() => {
-    const handleMouseMove = (e: MouseEvent) => {
-      const x = (e.clientX / window.innerWidth) * 100;
-      const y = (e.clientY / window.innerHeight) * 100;
-      document.documentElement.style.setProperty('--mouse-x', `${x}%`);
-      document.documentElement.style.setProperty('--mouse-y', `${y}%`);
-    };
-    window.addEventListener('mousemove', handleMouseMove);
-    return () => window.removeEventListener('mousemove', handleMouseMove);
-  }, []);
-
-  useEffect(() => {
+  async function loadInitialData() {
     if (!token || !user || mustChangePassword) return;
-    if (user.role === 'STUDENT') {
-      loadStudentData(token);
-    } else {
-      loadAdminData(token);
+    try {
+      if (user.role === 'STUDENT') {
+        await loadStudentData(token);
+      } else {
+        await loadAdminData(token);
+      }
+    } catch (e) {
+      setErrorMessage('Session expired. Please login again.');
+      logout();
     }
-  }, [token, user?.role, mustChangePassword, studentView, adminView]);
+  }
+
+  async function loadInitialData() {
+    if (!token || !user || mustChangePassword) return;
+    try {
+      if (user.role === 'STUDENT') {
+        await loadStudentData(token);
+      } else {
+        await loadAdminData(token);
+      }
+    } catch (e) {
+      setErrorMessage('Session expired. Please login again.');
+      logout();
+    }
+  }
 
   function setAuth(data: LoginResponse) {
     localStorage.setItem('token', data.accessToken);
@@ -263,6 +271,21 @@ export default function App() {
     setToken(null);
     setUser(null);
   }
+
+  useEffect(() => {
+    const handleMouseMove = (e: MouseEvent) => {
+      const x = (e.clientX / window.innerWidth) * 100;
+      const y = (e.clientY / window.innerHeight) * 100;
+      document.documentElement.style.setProperty('--mouse-x', `${x}%`);
+      document.documentElement.style.setProperty('--mouse-y', `${y}%`);
+    };
+    window.addEventListener('mousemove', handleMouseMove);
+    return () => window.removeEventListener('mousemove', handleMouseMove);
+  }, []);
+
+  useEffect(() => {
+    loadInitialData();
+  }, [token, user?.role, mustChangePassword]);
 
   async function changePasswordFirstTime() {
     if (!token || !oldPassword || !newPassword) return;
@@ -717,16 +740,45 @@ export default function App() {
     );
   }
 
+  async function loadInitialData() {
+    if (!token || !user || mustChangePassword) return;
+    try {
+      if (user.role === 'STUDENT') {
+        await loadStudentData(token);
+      } else {
+        await loadAdminData(token);
+      }
+    } catch (e) {
+      setErrorMessage('Session expired. Please login again.');
+      logout();
+    }
+  }
+
+  useEffect(() => {
+    const handleMouseMove = (e: MouseEvent) => {
+      const x = (e.clientX / window.innerWidth) * 100;
+      const y = (e.clientY / window.innerHeight) * 100;
+      document.documentElement.style.setProperty('--mouse-x', `${x}%`);
+      document.documentElement.style.setProperty('--mouse-y', `${y}%`);
+    };
+    window.addEventListener('mousemove', handleMouseMove);
+    return () => window.removeEventListener('mousemove', handleMouseMove);
+  }, []);
+
+  useEffect(() => {
+    loadInitialData();
+  }, [token, user?.role, mustChangePassword]);
+
   if (!token || !user) {
     return (
-      <div className="page">
+      <div className="page custom-bg">
         <LoginPage onLoginSuccess={handleLoginSuccess} />
       </div>
     );
   }
 
   return (
-    <div className="page">
+    <div className="page custom-bg">
       <motion.header 
         initial={{ y: -20, opacity: 0 }}
         animate={{ y: 0, opacity: 1 }}
@@ -769,7 +821,7 @@ export default function App() {
       )}
 
       {mustChangePassword && (
-        <div className="auth-page">
+        <div className="auth-page custom-bg">
           <motion.section 
             initial={{ scale: 0.9, opacity: 0 }}
             animate={{ scale: 1, opacity: 1 }}
