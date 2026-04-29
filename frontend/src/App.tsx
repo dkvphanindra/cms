@@ -61,6 +61,24 @@ export default function App() {
     return `/api${cleanPath}`;
   };
 
+  const handleDownload = async (filePath: string, fileName: string) => {
+    try {
+      const response = await fetch(getFileUrl(filePath));
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', fileName);
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(url);
+    } catch (error) {
+      console.error('Download failed:', error);
+      setErrorMessage('Failed to download file. Please try opening it in a new tab.');
+    }
+  };
+
   const [profile, setProfile] = useState<StudentProfile | null>(null);
   const [docTypes, setDocTypes] = useState<DocumentType[]>([]);
   const [certTypes, setCertTypes] = useState<DocumentType[]>([]);
@@ -909,6 +927,7 @@ export default function App() {
                             </div>
                             <div className="row-actions">
                               <a href={getFileUrl(d.filePath)} target="_blank" rel="noreferrer"><button className="secondary"><Eye size={14} /> View</button></a>
+                              <button className="secondary" onClick={() => handleDownload(d.filePath, d.fileName)}><Download size={14} /> Download</button>
                               <button className={d.visibility === 'SHARED' ? 'secondary' : ''} onClick={() => toggleDocVisibility(d.id, d.visibility)}>
                                 {d.visibility === 'SHARED' ? <Shield size={14} /> : <ShieldOff size={14} />} 
                                 {d.visibility === 'SHARED' ? 'Make Private' : 'Make Shared'}
@@ -990,6 +1009,7 @@ export default function App() {
                             </div>
                             <div className="row-actions">
                               <a href={getFileUrl(c.filePath)} target="_blank" rel="noreferrer"><button className="secondary"><Eye size={14} /> View</button></a>
+                              <button className="secondary" onClick={() => handleDownload(c.filePath, c.fileName || `${c.title}.pdf`)}><Download size={14} /> Download</button>
                               <button className={c.visibility === 'SHARED' ? 'secondary' : ''} onClick={() => toggleCertVisibility(c.id, c.visibility)}>
                                 {c.visibility === 'SHARED' ? <Shield size={14} /> : <ShieldOff size={14} />} 
                                 {c.visibility === 'SHARED' ? 'Make Private' : 'Make Shared'}
@@ -1468,6 +1488,7 @@ export default function App() {
                                         </div>
                                       </div>
                                       <a href={getFileUrl(d.filePath)} target="_blank" rel="noreferrer"><button className="secondary"><Eye size={14} /> View Document</button></a>
+                                      <button className="secondary" onClick={() => handleDownload(d.filePath, d.fileName)}><Download size={14} /> Download</button>
                                     </div>
                                     <div className="review-controls">
                                       <input 
@@ -1499,6 +1520,7 @@ export default function App() {
                                         </div>
                                       </div>
                                       <a href={getFileUrl(c.filePath)} target="_blank" rel="noreferrer"><button className="secondary"><Eye size={14} /> View Certificate</button></a>
+                                      <button className="secondary" onClick={() => handleDownload(c.filePath, c.fileName || `${c.title}.pdf`)}><Download size={14} /> Download</button>
                                     </div>
                                     <div className="review-controls">
                                       <input 
