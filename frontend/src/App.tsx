@@ -1009,7 +1009,7 @@ export default function App() {
                             </div>
                             <div className="row-actions">
                               <a href={getFileUrl(c.filePath)} target="_blank" rel="noreferrer"><button className="secondary"><Eye size={14} /> View</button></a>
-                              <button className="secondary" onClick={() => handleDownload(c.filePath, c.fileName || `${c.title}.pdf`)}><Download size={14} /> Download</button>
+                              <button className="secondary" onClick={() => handleDownload(c.filePath, c.title + '.pdf')}><Download size={14} /> Download</button>
                               <button className={c.visibility === 'SHARED' ? 'secondary' : ''} onClick={() => toggleCertVisibility(c.id, c.visibility)}>
                                 {c.visibility === 'SHARED' ? <Shield size={14} /> : <ShieldOff size={14} />} 
                                 {c.visibility === 'SHARED' ? 'Make Private' : 'Make Shared'}
@@ -1520,7 +1520,7 @@ export default function App() {
                                         </div>
                                       </div>
                                       <a href={getFileUrl(c.filePath)} target="_blank" rel="noreferrer"><button className="secondary"><Eye size={14} /> View Certificate</button></a>
-                                      <button className="secondary" onClick={() => handleDownload(c.filePath, c.fileName || `${c.title}.pdf`)}><Download size={14} /> Download</button>
+                                      <button className="secondary" onClick={() => handleDownload(c.filePath, c.title + '.pdf')}><Download size={14} /> Download</button>
                                     </div>
                                     <div className="review-controls">
                                       <input 
