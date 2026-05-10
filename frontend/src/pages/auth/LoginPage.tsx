@@ -42,6 +42,11 @@ export default function LoginPage({ onLoginSuccess }: Props) {
           </div>
           <h2 style={{ color: 'var(--primary)', marginBottom: '8px' }}>Welcome Back</h2>
           <p className="muted" style={{ fontSize: '0.9rem' }}>Certificates Management Portal</p>
+          <div style={{ marginTop: '15px', padding: '10px', background: '#fef3c7', borderRadius: '10px', fontSize: '0.8rem', color: '#92400e', border: '1px solid #fde68a' }}>
+            <b>Test Credentials:</b><br/>
+            Username: <code style={{ background: '#ffffff', padding: '2px 6px', borderRadius: '4px' }}>guest</code><br/>
+            Password: <code style={{ background: '#ffffff', padding: '2px 6px', borderRadius: '4px' }}>guest1</code>
+          </div>
         </div>
 
         <form onSubmit={onSubmit} className="stack">
